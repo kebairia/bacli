@@ -40,10 +40,12 @@ postgres_instances:
     password: "pass2"
     database: "db2"
     port: "5434"
+    method: "directory"
   - username: "user3"
     password: "pass3"
     database: "db3"
     port: "5435"
+    method: "plain"
 mongodb_instances:
   - username: "root1"
     password: "secret1"
