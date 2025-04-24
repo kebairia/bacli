@@ -11,139 +11,195 @@ import (
 
 	"github.com/kebairia/backup/internal/config"
 	"github.com/kebairia/backup/internal/logger"
-	"go.uber.org/zap"
 )
 
-type MongoDBInstance struct {
-	Username   string
-	Password   string
-	DBName     string
-	Host       string
-	Port       string
-	Method     string
-	OutputPath string
+// MongoDBOption lets you override default settings on a MongoDB.
+type MongoDBOption func(*MongoDB)
+
+// MongoDB holds configuration for backing up and restoring a MongoDB database.
+type MongoDB struct {
+	Username        string
+	Password        string
+	Database        string
+	Host            string
+	Port            string
+	Method          string
+	OutputDir       string
+	TimeStampFormat string
+	Logger          logger.Logger
 }
 
-// Default values "functional options pattern"
-type MongoOption func(*MongoDBInstance)
-
-// Option is a configuration option for PostgreSQLInstance.
-func MongoWithHost(host string) MongoOption {
-	return func(ps *MongoDBInstance) {
-		ps.Host = host
-	}
-}
-
-// WithPort overrides the port.
-func MongoWithPort(port string) MongoOption {
-	return func(ps *MongoDBInstance) {
-		ps.Port = port
-	}
-}
-
-// WithCompress override the compress
-func MongoWithUsername(username string) MongoOption {
-	return func(ps *MongoDBInstance) {
-		ps.Username = username
-	}
-}
-
-// WithOutputPath override the outputpath
-func MongoWithOutputPath(outputPath string) MongoOption {
-	return func(ps *MongoDBInstance) {
-		ps.OutputPath = outputPath
-	}
-}
-
-// WithPassword override the password
-func MongoWithPassword(password string) MongoOption {
-	return func(ps *MongoDBInstance) {
-		ps.Password = password
-	}
-}
-
-// WithDatabase override the database
-func MongoWithDatabase(database string) MongoOption {
-	return func(ps *MongoDBInstance) {
-		ps.DBName = database
-	}
-}
-
-// WithMethod override the database
-func MongoWithMethod(method string) MongoOption {
-	return func(ps *MongoDBInstance) {
-		ps.Method = method
-	}
-}
-
-// NewMongoDBInstance creates and returns a configured MongoDBInstance.
-func NewMongoDBInstance(cfg config.Config, opts ...MongoOption) *MongoDBInstance {
-	instance := &MongoDBInstance{
-		Username:   cfg.Defaults.MongoDB.Username,
-		Password:   cfg.Defaults.MongoDB.Password,
-		DBName:     cfg.Defaults.MongoDB.Database,
-		Host:       cfg.Defaults.MongoDB.Host,
-		Port:       cfg.Defaults.MongoDB.Port,
-		Method:     cfg.Defaults.MongoDB.Method,
-		OutputPath: cfg.Backup.OutputDir,
+// NewMongoDB returns a MongoDB configured from cfg plus any overrides.
+// It also initializes the global logger.
+func NewMongoDB(cfg config.Config, opts ...MongoDBOption) (*MongoDB, error) {
+	log, err := logger.Init()
+	if err != nil {
+		return nil, fmt.Errorf("logger init failed: %w", err)
 	}
 
+	// Start with defaults from your YAML config
+	m := &MongoDB{
+		Username:        cfg.Defaults.MongoDB.Username,
+		Password:        cfg.Defaults.MongoDB.Password,
+		Database:        cfg.Defaults.MongoDB.Database,
+		Host:            cfg.Defaults.MongoDB.Host,
+		Port:            cfg.Defaults.MongoDB.Port,
+		Method:          cfg.Defaults.MongoDB.Method,
+		OutputDir:       cfg.Backup.OutputDir,
+		TimeStampFormat: cfg.Backup.TimestampFormat,
+		Logger:          log,
+	}
+	// Apply any functional options
 	for _, opt := range opts {
-		opt(instance)
+		opt(m)
 	}
-	return instance
+	return m, nil
 }
 
-func (instance *MongoDBInstance) Backup() error {
-	logger.Init()
-	ctx := context.Background()
-	timestamp := time.Now().Format("2006-01-02_15-04-05")
-	// I will add extension later
-	backupFile := filepath.Join(
-		instance.OutputPath,
-		"mongodb",
-		fmt.Sprintf("%s-%s.dump", timestamp, instance.DBName),
-	)
-	// Ensure the output directory exists
-	if err := os.MkdirAll(filepath.Dir(backupFile), 0755); err != nil {
-		return fmt.Errorf("failed to create backup directory: %w", err)
+// WithMongoHost overrides the MongoDB host.
+func WithMongoHost(host string) MongoDBOption {
+	return func(m *MongoDB) {
+		if host != "" {
+			m.Host = host
+		}
 	}
-	// Function to check if a file/directory exist or not.
-	args := []string{
-		"--host=" + instance.Host,
-		"--port=" + instance.Port,
-		"--username=" + instance.Username,
-		"--password=" + instance.Password,
-		"--db=" + instance.DBName,
-		"--authenticationDatabase=admin",
-		"--out=" + backupFile,
-	}
-	cmd := exec.CommandContext(ctx, "mongodump", args...)
-	cmd.Stdout = io.Discard
-	cmd.Stderr = io.Discard
+}
 
-	logger.Log.Info("Starting MongoDB backup",
-		zap.String("db", instance.DBName),
-		zap.String("path", backupFile))
+// WithMongoPort overrides the MongoDB port.
+func WithMongoPort(port string) MongoDBOption {
+	return func(m *MongoDB) {
+		if port != "" {
+			m.Port = port
+		}
+	}
+}
+
+// WithMongoCredentials sets username and password.
+func WithMongoCredentials(user, pass string) MongoDBOption {
+	return func(m *MongoDB) {
+		if user != "" {
+			m.Username = user
+		}
+		if pass != "" {
+			m.Password = pass
+		}
+	}
+}
+
+// WithMongoDatabase overrides the database name.
+func WithMongoDatabase(db string) MongoDBOption {
+	return func(m *MongoDB) {
+		if db != "" {
+			m.Database = db
+		}
+	}
+}
+
+// WithPostgresMethod overrides output format (custom/plain/directory).
+func WithMongoMethod(method string) MongoDBOption {
+	return func(m *MongoDB) {
+		if method != "" {
+			m.Method = method
+		}
+	}
+}
+
+// WithMongoOutputDir overrides where backups are written.
+func WithMongoOutputDir(dir string) MongoDBOption {
+	return func(m *MongoDB) {
+		if dir != "" {
+			m.OutputDir = dir
+		}
+	}
+}
+
+// WithTimestampFormat overrides timestamp format
+func WithMongoTimestampFormat(timeStampFormat string) MongoDBOption {
+	return func(m *MongoDB) {
+		if timeStampFormat != "" {
+			m.TimeStampFormat = timeStampFormat
+		}
+	}
+}
+
+// Backup runs `mongodump` to back up the database into a timestamped folder.
+func (m *MongoDB) Backup() error {
+	log := m.Logger
+	// Build a path like ./backups/mongodb/2025-04-24_21-00-00-mydb
+	timestamp := time.Now().Format(m.TimeStampFormat)
+	outputPath := filepath.Join(m.OutputDir, "mongodb", fmt.Sprintf("%s-%s", timestamp, m.Database))
+
+	// Ensure the parent directory exists
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+		return fmt.Errorf("mkdir %q: %w", filepath.Dir(outputPath), err)
+	}
+
+	// Prepare arguments for mongodump
+	args := []string{
+		"--host=" + m.Host,
+		"--port=" + m.Port,
+		"--username=" + m.Username,
+		"--password=" + m.Password,
+		"--db=" + m.Database,
+		"--authenticationDatabase=admin",
+		"--out=" + outputPath,
+	}
+
+	cmd := exec.CommandContext(context.Background(), "mongodump", args...)
+	// Silence mongodump’s stdout, keep stderr for errors
+	cmd.Stdout = io.Discard
+	cmd.Stderr = os.Stderr
+
+	log.Info("Starting MongoDB backup",
+		"database", m.Database,
+		"output", outputPath,
+	)
 
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("mongodump failed: %w", err)
 	}
 
-	logger.Log.Info("MongoDB backup complete",
-		zap.String("db", instance.DBName),
-		zap.String("path", backupFile))
-
+	log.Info("MongoDB backup complete",
+		"database", m.Database,
+		"output", outputPath,
+	)
 	return nil
 }
 
-func (instance *MongoDBInstance) Restore(filename string) error {
-	logger.Init()
-	// ctx := context.Background()
-
-	// Check if the provided backup file exists
-	if err := EnsureDirectoryExist(filename); err != nil {
-		return err
+// Restore runs `mongorestore` to restore from a backup directory.
+func (m *MongoDB) Restore(sourceDir string) error {
+	log := m.Logger
+	// Ensure the source exists
+	if _, err := os.Stat(sourceDir); err != nil {
+		return fmt.Errorf("backup source %q not found: %w", sourceDir, err)
 	}
+
+	args := []string{
+		"--host=" + m.Host,
+		"--port=" + m.Port,
+		"--username=" + m.Username,
+		"--password=" + m.Password,
+		"--db=" + m.Database,
+		"--authenticationDatabase=admin",
+		"--drop", // drop existing collections first
+		"--dir=" + sourceDir,
+	}
+
+	cmd := exec.CommandContext(context.Background(), "mongorestore", args...)
+	cmd.Stdout = io.Discard
+	cmd.Stderr = os.Stderr
+
+	log.Info("Starting MongoDB restore",
+		"database", m.Database,
+		"source", sourceDir,
+	)
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("mongorestore failed: %w", err)
+	}
+
+	log.Info("MongoDB restore complete",
+		"database", m.Database,
+	)
 	return nil
 }
