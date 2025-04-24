@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/kebairia/backup/internal/config"
 	"github.com/kebairia/backup/internal/logger"
 	"go.uber.org/zap"
 )
@@ -19,13 +20,84 @@ type MongoDBInstance struct {
 	DBName     string
 	Host       string
 	Port       string
+	Method     string
 	OutputPath string
+}
+
+// Default values "functional options pattern"
+type MongoOption func(*MongoDBInstance)
+
+// Option is a configuration option for PostgreSQLInstance.
+func MongoWithHost(host string) MongoOption {
+	return func(ps *MongoDBInstance) {
+		ps.Host = host
+	}
+}
+
+// WithPort overrides the port.
+func MongoWithPort(port string) MongoOption {
+	return func(ps *MongoDBInstance) {
+		ps.Port = port
+	}
+}
+
+// WithCompress override the compress
+func MongoWithUsername(username string) MongoOption {
+	return func(ps *MongoDBInstance) {
+		ps.Username = username
+	}
+}
+
+// WithOutputPath override the outputpath
+func MongoWithOutputPath(outputPath string) MongoOption {
+	return func(ps *MongoDBInstance) {
+		ps.OutputPath = outputPath
+	}
+}
+
+// WithPassword override the password
+func MongoWithPassword(password string) MongoOption {
+	return func(ps *MongoDBInstance) {
+		ps.Password = password
+	}
+}
+
+// WithDatabase override the database
+func MongoWithDatabase(database string) MongoOption {
+	return func(ps *MongoDBInstance) {
+		ps.DBName = database
+	}
+}
+
+// WithMethod override the database
+func MongoWithMethod(method string) MongoOption {
+	return func(ps *MongoDBInstance) {
+		ps.Method = method
+	}
+}
+
+// NewMongoDBInstance creates and returns a configured MongoDBInstance.
+func NewMongoDBInstance(cfg config.Config, opts ...MongoOption) *MongoDBInstance {
+	instance := &MongoDBInstance{
+		Username:   cfg.Defaults.MongoDB.Username,
+		Password:   cfg.Defaults.MongoDB.Password,
+		DBName:     cfg.Defaults.MongoDB.Database,
+		Host:       cfg.Defaults.MongoDB.Host,
+		Port:       cfg.Defaults.MongoDB.Port,
+		Method:     cfg.Defaults.MongoDB.Method,
+		OutputPath: cfg.Backup.OutputDir,
+	}
+
+	for _, opt := range opts {
+		opt(instance)
+	}
+	return instance
 }
 
 func (instance *MongoDBInstance) Backup() error {
 	logger.Init()
 	ctx := context.Background()
-	timestamp := time.Now().Format("2006-01-02_14-04-05")
+	timestamp := time.Now().Format("2006-01-02_15-04-05")
 	// I will add extension later
 	backupFile := filepath.Join(
 		instance.OutputPath,
@@ -74,18 +146,4 @@ func (instance *MongoDBInstance) Restore(filename string) error {
 		return err
 	}
 	return nil
-}
-
-// NewMongoDBInstance creates and returns a configured MongoDBInstance.
-func NewMongoDBInstance(
-	username, password, dbname, host, port, outputPath string,
-) *MongoDBInstance {
-	return &MongoDBInstance{
-		Username:   username,
-		Password:   password,
-		DBName:     dbname,
-		Host:       host,
-		Port:       port,
-		OutputPath: outputPath,
-	}
 }

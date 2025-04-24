@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"github.com/kebairia/backup/internal/config"
 	"github.com/kebairia/backup/internal/logger"
 	"go.uber.org/zap"
 )
@@ -18,8 +19,95 @@ type PostgreSQLInstance struct {
 	DBName     string
 	Host       string
 	Port       string
+	Method     string
 	OutputPath string
 }
+
+// Default values "functional options pattern"
+type Option func(*PostgreSQLInstance)
+
+// Option is a configuration option for PostgreSQLInstance.
+func WithHost(host string) Option {
+	return func(ps *PostgreSQLInstance) {
+		if host != "" {
+			ps.Host = host
+		}
+	}
+}
+
+// WithPort overrides the port.
+func WithPort(port string) Option {
+	return func(ps *PostgreSQLInstance) {
+		if port != "" {
+			ps.Port = port
+		}
+	}
+}
+
+// WithCompress override the compress
+func WithUsername(username string) Option {
+	return func(ps *PostgreSQLInstance) {
+		if username != "" {
+			ps.Username = username
+		}
+	}
+}
+
+// WithOutputPath override the outputpath
+func WithOutputPath(outputPath string) Option {
+	return func(ps *PostgreSQLInstance) {
+		if outputPath != "" {
+			ps.OutputPath = outputPath
+		}
+	}
+}
+
+// WithPassword override the password
+func WithPassword(password string) Option {
+	return func(ps *PostgreSQLInstance) {
+		if password != "" {
+			ps.Password = password
+		}
+	}
+}
+
+// WithDatabase override the database
+func WithDatabase(database string) Option {
+	return func(ps *PostgreSQLInstance) {
+		if database != "" {
+			ps.DBName = database
+		}
+	}
+}
+
+// WithMethod override the database
+func WithMethod(method string) Option {
+	return func(ps *PostgreSQLInstance) {
+		if method != "" {
+			ps.Method = method
+		}
+	}
+}
+
+// NewPostgresInstance creates and returns a configured PostgreSQLInstance.
+func NewPostgresInstance(cfg config.Config, opts ...Option) *PostgreSQLInstance {
+	instance := &PostgreSQLInstance{
+		Username:   cfg.Defaults.Postgres.Username,
+		Password:   cfg.Defaults.Postgres.Password,
+		DBName:     cfg.Defaults.Postgres.Database,
+		Host:       cfg.Defaults.Postgres.Host,
+		Port:       cfg.Defaults.Postgres.Port,
+		Method:     cfg.Defaults.Postgres.Method,
+		OutputPath: cfg.Backup.OutputDir,
+	}
+
+	for _, opt := range opts {
+		opt(instance)
+	}
+	return instance
+}
+
+// Backup and Restore functions
 
 func (instance *PostgreSQLInstance) Backup() error {
 	logger.Init()
@@ -108,18 +196,4 @@ func (instance *PostgreSQLInstance) Restore(filename string) error {
 	)
 
 	return nil
-}
-
-// NewPostgresInstance creates and returns a configured PostgreSQLInstance.
-func NewPostgresInstance(
-	username, password, dbname, host, port, outputPath string,
-) *PostgreSQLInstance {
-	return &PostgreSQLInstance{
-		Username:   username,
-		Password:   password,
-		DBName:     dbname,
-		Host:       host,
-		Port:       port,
-		OutputPath: outputPath,
-	}
 }

@@ -1,0 +1,59 @@
+# -----------------------------------------------------------------------------
+# Author:      Zakaria Kebairia
+# Date:        2025-04-24
+# Version:     1.0
+# Description: Configuration for backup utility covering PostgreSQL and MongoDB
+#              instances. Defines global defaults and per-instance overrides.
+# -----------------------------------------------------------------------------
+backup:
+  # Directory where all backups will be saved
+  output_dir: "./backups"
+  # Enable compression for backup archives
+  compress: true
+  # Timestamp format for backup filenames (Go time layout)
+  timestamp_format: "2006-01-02_15-04-05"
+defaults:
+  postgres:
+    # Default host for Postgres instances
+    host: "localhost"
+    # Default port for Postgres instances
+    port: "5432"
+    # Default backup method for Postgres instances
+    method: "custom"
+  mongodb:
+    # Default host for MongoDB instances
+    # Default value: "localhost"
+    host: "localhost"
+    # Default port for MongoDB instances
+    port: "27017"
+    # Default backup method for MongoDB instances
+    method: "archive"
+    # Enable compression for MongoDB backups
+    compress: true
+# Instance 1 (overrides default port only)
+postgres_instances:
+  - username: "user1"
+    password: "pass1"
+    database: "db1"
+    port: "5433"
+  - username: "user2"
+    password: "pass2"
+    database: "db2"
+    port: "5434"
+  - username: "user3"
+    password: "pass3"
+    database: "db3"
+    port: "5435"
+mongodb_instances:
+  - username: "root1"
+    password: "secret1"
+    database: "testdb1"
+    port: "27018"
+  - username: "root2"
+    password: "secret2"
+    database: "testdb2"
+    port: "27019"
+  - username: "root3"
+    password: "secret3"
+    database: "testdb3"
+    port: "27020"
