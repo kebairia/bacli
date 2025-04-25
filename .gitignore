@@ -1,5 +1,6 @@
 docker
-backup
 backups
 *.sql
 notes.md
+/bacli
+*.json
