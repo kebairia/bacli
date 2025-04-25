@@ -1,7 +1,7 @@
 # Makefile for kvmcli project
 
 # BINARY_NAME sets the name of the output executable.
-BINARY_NAME = backup
+BINARY_NAME = bacli
 
 # The default target: when you run "make" without arguments, it will run the "build" target.
 all: build
