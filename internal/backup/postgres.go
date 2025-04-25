@@ -110,7 +110,7 @@ func WithPostgresOutputDir(dir string) PostgresOption {
 }
 
 // WithTimestampFormat overrides timestamp format
-func WithTimestampFormat(timeStampFormat string) PostgresOption {
+func WithPostgresTimestampFormat(timeStampFormat string) PostgresOption {
 	return func(p *Postgres) {
 		if timeStampFormat != "" {
 			p.TimeStampFormat = timeStampFormat
