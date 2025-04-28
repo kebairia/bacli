@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 )
 
-func EnsureDirectoryExist(filePath string) error {
-	if err := os.MkdirAll(filepath.Dir(filePath), 0755); err != nil {
-		return fmt.Errorf("failed to create backup directory: %w", err)
+func EnsureDirectoryExist(dirPath string) error {
+	if err := os.MkdirAll(filepath.Dir(dirPath), 0755); err != nil {
+		return fmt.Errorf("failed to create backup directory %q: %w", dirPath, err)
 	}
 	return nil
 }
