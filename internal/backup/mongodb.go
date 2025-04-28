@@ -123,7 +123,7 @@ func WithMongoTimestampFormat(timeStampFormat string) MongoDBOption {
 }
 
 // Backup runs `mongodump` to back up the database into a timestamped folder.
-func (m *MongoDB) Backup() error {
+func (m *MongoDB) Backup() (backupPath string, err error) {
 	log := m.Logger
 	// Build a path like ./backups/mongodb/2025-04-24_21-00-00-mydb
 	timestamp := time.Now().Format(m.TimeStampFormat)
@@ -131,7 +131,7 @@ func (m *MongoDB) Backup() error {
 
 	// Ensure the parent directory exists
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
-		return fmt.Errorf("mkdir %q: %w", filepath.Dir(outputPath), err)
+		return "", fmt.Errorf("mkdir %q: %w", filepath.Dir(outputPath), err)
 	}
 
 	// Prepare arguments for mongodump
@@ -156,14 +156,14 @@ func (m *MongoDB) Backup() error {
 	)
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("mongodump failed: %w", err)
+		return "", fmt.Errorf("mongodump failed: %w", err)
 	}
 
 	log.Info("MongoDB backup complete",
 		"database", m.Database,
 		"output", outputPath,
 	)
-	return nil
+	return outputPath, nil
 }
 
 // Restore runs `mongorestore` to restore from a backup directory.
@@ -202,4 +202,12 @@ func (m *MongoDB) Restore(sourceDir string) error {
 		"database", m.Database,
 	)
 	return nil
+}
+
+func (m *MongoDB) GetName() string {
+	return m.Database
+}
+
+func (m *MongoDB) GetPath() string {
+	return filepath.Join(m.OutputDir, "mongodb")
 }

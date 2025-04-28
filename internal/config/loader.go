@@ -57,13 +57,33 @@ type MongoDBConfig struct {
 	Method   string `yaml:"method,omitempty"`
 }
 
-func (config *Config) LoadConfig(filename string) (data []byte, err error) {
-	data, err = os.ReadFile(filename)
+func (config *Config) LoadConfig(path string) error {
+	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read config file %s: %w", filename, err)
+		return fmt.Errorf("read config file %q: %w", path, err)
 	}
 	if err := yaml.Unmarshal(data, config); err != nil {
-		return data, fmt.Errorf("failed to unmarshal yaml config: %w", err)
+		return fmt.Errorf("unmarshal YAML config: %w", err)
 	}
-	return data, nil
+	// Validate backup section
+	if config.Backup.OutputDir == "" {
+		return fmt.Errorf("backup.output_dir is required")
+	}
+	// Provide default timestamp format if unset
+	if config.Backup.TimestampFormat == "" {
+		config.Backup.TimestampFormat = "2006-01-02_15-04-05"
+	}
+	// Validate Postgres instances
+	for i, ps := range config.PostgresInstances {
+		if ps.Database == "" {
+			return fmt.Errorf("postgres_instances[%d].database is required", i)
+		}
+	}
+	// Validate MongoDB instances
+	for i, m := range config.MongoInstances {
+		if m.Database == "" {
+			return fmt.Errorf("mongodb_instances[%d].database is required", i)
+		}
+	}
+	return nil
 }

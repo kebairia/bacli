@@ -119,19 +119,19 @@ func WithPostgresTimestampFormat(timeStampFormat string) PostgresOption {
 }
 
 // Backup runs `pg_dump` to back up the database into a timestamped .dump file.
-func (p *Postgres) Backup() error {
+func (p *Postgres) Backup() (dumpFilePath string, err error) {
 	log := p.Logger
 	// e.g. "./backups/postgres/2025-04-24_21-00-00-mydb.dump"
 	timestamp := time.Now().Format(p.TimeStampFormat)
-	backupFile := filepath.Join(
+	dumpFilePath = filepath.Join(
 		p.OutputDir,
 		"postgres",
 		fmt.Sprintf("%s-%s.dump", timestamp, p.Database),
 	)
 
 	// Ensure the parent directory exists
-	if err := os.MkdirAll(filepath.Dir(backupFile), 0o755); err != nil {
-		return fmt.Errorf("mkdir %q: %w", filepath.Dir(backupFile), err)
+	if err := os.MkdirAll(filepath.Dir(dumpFilePath), 0o755); err != nil {
+		return "", fmt.Errorf("mkdir %q: %w", filepath.Dir(dumpFilePath), err)
 	}
 
 	// Build pg_dump args
@@ -141,7 +141,7 @@ func (p *Postgres) Backup() error {
 		"-U", p.Username,
 		"-d", p.Database,
 		"-F", p.Method,
-		"-f", backupFile,
+		"-f", dumpFilePath,
 	}
 
 	cmd := exec.CommandContext(context.Background(), "pg_dump", args...)
@@ -152,18 +152,18 @@ func (p *Postgres) Backup() error {
 	log.Info("Starting PostgreSQL backup",
 		"database", p.Database,
 		"method", p.Method,
-		"output", backupFile,
+		"output", dumpFilePath,
 	)
 
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("pg_dump failed: %w", err)
+		return "", fmt.Errorf("pg_dump failed: %w", err)
 	}
 
 	log.Info("PostgreSQL backup complete",
 		"database", p.Database,
-		"output", backupFile,
+		"output", dumpFilePath,
 	)
-	return nil
+	return dumpFilePath, nil
 }
 
 // Restore runs `pg_restore` to restore from a .dump file.
@@ -202,4 +202,12 @@ func (p *Postgres) Restore(backupFile string) error {
 		"database", p.Database,
 	)
 	return nil
+}
+
+func (p *Postgres) GetName() string {
+	return p.Database
+}
+
+func (p *Postgres) GetPath() string {
+	return filepath.Join(p.OutputDir, "postgres")
 }

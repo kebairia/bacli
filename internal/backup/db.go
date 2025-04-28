@@ -1,6 +1,7 @@
 package backup
 
 type Database interface {
-	Backup() error
+	GetName() string
+	Backup() (backupPath string, err error)
 	Restore(filename string) error
 }

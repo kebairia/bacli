@@ -1,78 +1,91 @@
 package operations
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
+	"time"
 
 	"github.com/kebairia/backup/internal/backup"
 	"github.com/kebairia/backup/internal/config"
 	"github.com/kebairia/backup/internal/logger"
 )
 
-// InitializeDatabases reads the YAML config at configPath, sets up
-// a Zap logger, and returns a slice of backup.Database instances
-// (Postgres + MongoDB) according to that config.
+// InitializeDatabases loads, parses, and validates the YAML config at configPath.
+// It constructs and returns a slice of Database instances (Postgres + MongoDB).
 func InitializeDatabases(configPath string) ([]backup.Database, error) {
-	// 1. Initialize structured logger (zap)
-	log, err := logger.Init()
-	if err != nil {
-		return nil, fmt.Errorf("logger init failed: %w", err)
-	}
-	// 2. Load the yaml file into cfg
+	// Parse configuration file into cfg
 	var cfg config.Config
-	if _, err := cfg.LoadConfig(configPath); err != nil {
-		return nil, fmt.Errorf("could not load config %q: %w", configPath, err)
+	if err := cfg.LoadConfig(configPath); err != nil {
+		return nil, fmt.Errorf("could not parse config %q: %w", configPath, err)
 	}
-	var databases []backup.Database
-	// 3. Build Postgres instances
-	for _, postgresInstance := range cfg.PostgresInstances {
+
+	// Retrieve the global logger (must be initialized already)
+	log := logger.Global()
+
+	// Prepare slice to hold database instances
+	var dbs []backup.Database
+
+	// --- Postgres instances ---
+	for _, ps := range cfg.PostgresInstances {
+		// Build functional options from config
 		opts := []backup.PostgresOption{
-			backup.WithPostgresCredentials(postgresInstance.Username, postgresInstance.Password),
-			backup.WithPostgresDatabase(postgresInstance.Database),
-			backup.WithPostgresHost(postgresInstance.Host),
-			backup.WithPostgresPort(postgresInstance.Port),
-			backup.WithPostgresMethod(postgresInstance.Method),
+			backup.WithPostgresCredentials(ps.Username, ps.Password),
+			backup.WithPostgresDatabase(ps.Database),
+			backup.WithPostgresHost(ps.Host),
+			backup.WithPostgresPort(ps.Port),
+			backup.WithPostgresMethod(ps.Method),
 		}
+
+		// Create a Postgres backup handler
 		pg, err := backup.NewPostgres(cfg, opts...)
+		if err != nil {
+			return nil, fmt.Errorf("failed creating Postgres instance %q: %w", ps.Database, err)
+		}
+
+		// Inject the shared logger
 		pg.Logger = log
-		if err != nil {
-			return nil, fmt.Errorf(
-				"failed creating Postgres instance for %q: %w",
-				postgresInstance.Database,
-				err,
-			)
-		}
-		databases = append(databases, pg)
+
+		// Add to the list of databases to back up
+		dbs = append(dbs, pg)
 	}
 
-	// 4) Build MongoDB instances
-	for _, mongoInstance := range cfg.MongoInstances {
+	// --- MongoDB instances ---
+	for _, m := range cfg.MongoInstances {
 		opts := []backup.MongoDBOption{
-			backup.WithMongoCredentials(mongoInstance.Username, mongoInstance.Password),
-			backup.WithMongoDatabase(mongoInstance.Database),
-			backup.WithMongoHost(mongoInstance.Host),
-			backup.WithMongoPort(mongoInstance.Port),
-			backup.WithMongoMethod(mongoInstance.Method),
+			backup.WithMongoCredentials(m.Username, m.Password),
+			backup.WithMongoDatabase(m.Database),
+			backup.WithMongoHost(m.Host),
+			backup.WithMongoPort(m.Port),
+			backup.WithMongoMethod(m.Method),
 		}
-
-		mdb, err := backup.NewMongoDB(cfg, opts...)
-		mdb.Logger = log
+		mg, err := backup.NewMongoDB(cfg, opts...)
 		if err != nil {
-			return nil, fmt.Errorf(
-				"failed creating MongoDB instance for %q: %w",
-				mongoInstance.Database,
-				err,
-			)
+			return nil, fmt.Errorf("failed creating MongoDB instance %q: %w", m.Database, err)
 		}
-		databases = append(databases, mdb)
+		mg.Logger = log
+		dbs = append(dbs, mg)
 	}
-	return databases, nil
+
+	return dbs, nil
 }
 
 // BackupDatabase runs a single backup against one Database.
 // It returns an error if that backup fails.
-func BackupDatabase(db backup.Database) error {
-	if err := db.Backup(); err != nil {
-		return fmt.Errorf("backup failed: %w", err)
+func BackupDatabase(db backup.Database) (string, error) {
+	backupPath, err := db.Backup()
+	if err != nil {
+		return "", fmt.Errorf("backup failed: %w", err)
+	}
+	return backupPath, nil
+}
+
+// RestoreDatabase runs a single restore against one Database.
+// It returns an error if that restore fails.
+func RestoreDatabase(db backup.Database, dumpFile string) error {
+	if err := db.Restore(dumpFile); err != nil {
+		return fmt.Errorf("restore failed: %w", err)
 	}
 	return nil
 }
@@ -80,19 +93,84 @@ func BackupDatabase(db backup.Database) error {
 // BackupAll loads all database instances from configPath and
 // performs BackupDatabase on each in turn. On first error, it
 // aborts and returns that error. Finally, it flushes the logger.
-func BackupAll(configPath string) error {
-	instances, err := InitializeDatabases(configPath)
+func BackupAll(configPath, metadataPath string) error {
+	log, err := logger.Init()
 	if err != nil {
-		return err
+		return fmt.Errorf("logger init failed: %w", err)
+	}
+	// Initialize databases
+	dbs, err := InitializeDatabases(configPath)
+	if err != nil {
+		return fmt.Errorf("initialize databases: %w", err)
+	}
+	// Prepare metadata
+	meta := backup.Metadata{
+		RunAt:   time.Now(),
+		Backups: make([]backup.DBRecord, 0, len(dbs)),
 	}
 
-	for _, inst := range instances {
-		if err := BackupDatabase(inst); err != nil {
-			return err
+	for _, db := range dbs {
+		record := backup.DBRecord{
+			Name:      db.GetName(),
+			StartedAt: time.Now(),
 		}
+		// Perform backup for this instance
+		path, err := db.Backup()
+		record.Duration = time.Since(record.StartedAt)
+		if err != nil {
+			record.Success = false
+			record.Error = err.Error()
+			record.Path = "None"
+			meta.Backups = append(meta.Backups, record)
+			log.Error("backup failed for %q: %w", db.GetName(), err)
+			continue
+		}
+		// Record successful backup
+		record.Success = true
+		record.Path = path
+		if info, err := os.Stat(path); err == nil {
+			record.SizeBytes = info.Size()
+		}
+		meta.Backups = append(meta.Backups, record)
+	}
+	// Write metadata to file
+	if err := writeMetadata(metadataPath, &meta); err != nil {
+		return fmt.Errorf("write metadata: %w", err)
 	}
 
 	// Ensure buffered log entries are written out
-	logger.Cleanup()
+	// logger.Cleanup()
+	return nil
+}
+
+// writeMetadata writes the metadata JSON to the specified path.
+func writeMetadata(path string, meta *backup.Metadata) error {
+	// Ensure directory exists
+	if err := backup.EnsureDirectoryExist(path); err != nil {
+		return fmt.Errorf("create metadata dir %q: %w", filepath.Dir(path), err)
+	}
+	file, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("create metadata file %q: %w", path, err)
+	}
+	defer file.Close()
+
+	enc := json.NewEncoder(file)
+	enc.SetIndent("", "  ")
+	return enc.Encode(meta)
+}
+
+// RestoreAll restores all configured databases from the given source.
+// NOTE: it must read the source from metadata.json file
+func RestoreAll(configPath, source string) error {
+	dbs, err := InitializeDatabases(configPath)
+	if err != nil {
+		return fmt.Errorf("initialize databases: %w", err)
+	}
+	for _, db := range dbs {
+		if err := db.Restore(source); err != nil {
+			return fmt.Errorf("restore failed for %q: %w", db.GetName(), err)
+		}
+	}
 	return nil
 }
