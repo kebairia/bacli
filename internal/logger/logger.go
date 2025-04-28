@@ -54,6 +54,13 @@ func Init() (Logger, error) {
 	// 2) Tweak encoder: ISO8601 timestamps + capital, colored levels
 	cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
 	// cfg.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	cfg.Encoding = "json" // important: structured logging
+	cfg.EncoderConfig.TimeKey = "timestamp"
+	cfg.EncoderConfig.MessageKey = "message"
+	cfg.EncoderConfig.LevelKey = "level"
+	cfg.EncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	cfg.EncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
+	cfg.OutputPaths = []string{"stdout"} // write logs to stdout
 
 	// 3) Build the zap.Logger
 	zapLog, err := cfg.Build(
