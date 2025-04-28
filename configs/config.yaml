@@ -6,7 +6,7 @@
 # -----------------------------------------------------------------------------
 include:
   - "./configs/postgres.yaml"
-  # - "./configs/mongodb.yaml"
+  - "./configs/mongodb.yaml"
 backup:
   # Directory where all backups are saved
   output_dir: "./backups"

@@ -7,7 +7,7 @@
 postgres_instances:
   - username: "user1"
     password: "pass1"
-    database: "db1"
+    database: "db10"
     port: "5433"
     method: "plain"
   - username: "user2"
