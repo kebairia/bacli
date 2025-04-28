@@ -89,100 +89,96 @@ func RestoreDatabase(db backup.Database, dumpFile string) error {
 	return nil
 }
 
-// BackupAll loads all database instances from configPath and
-// performs BackupDatabase on each in turn. On first error, it
-// aborts and returns that error. Finally, it flushes the logger.
+// BackupAll performs backup for all configured databases and writes metadata.
 func BackupAll(configPath, metadataPath string) error {
-	// metadataFile := filepath.Join(metadataPath, "metadata.json")
 	log, err := logger.Init()
 	if err != nil {
-		return fmt.Errorf("logger init failed: %w", err)
-	}
-	// Initialize databases
-	dbs, err := InitializeDatabases(configPath)
-	if err != nil {
-		return fmt.Errorf("initialize databases: %w", err)
-	}
-	// Prepare metadata
-	meta := backup.Metadata{
-		RunAt:   time.Now(),
-		Backups: make([]backup.DBRecord, 0, len(dbs)),
+		return fmt.Errorf("failed to initialize logger: %w", err)
 	}
 
-	for _, db := range dbs {
+	databases, err := InitializeDatabases(configPath)
+	if err != nil {
+		return fmt.Errorf("failed to initialize databases: %w", err)
+	}
+
+	metadata := backup.Metadata{
+		RunAt:   time.Now(),
+		Backups: make([]backup.DBRecord, 0, len(databases)),
+	}
+
+	for _, db := range databases {
 		record := backup.DBRecord{
 			Name:      db.GetName(),
 			StartedAt: time.Now(),
 		}
-		// Perform backup for this instance
+
+		// path, err := BackupDatabase(db)
 		path, err := db.Backup()
 		record.Duration = time.Since(record.StartedAt)
 		if err != nil {
 			record.Success = false
 			record.Error = err.Error()
 			record.Path = "None"
-			meta.Backups = append(meta.Backups, record)
-			log.Error("backup failed for %q: %w", record.Name, err)
+			log.Error("backup failed",
+				"database", db.GetName(),
+				"error", err.Error(),
+			)
+			metadata.Backups = append(metadata.Backups, record)
 			continue
 		}
-		// Record successful backup
+
 		record.Success = true
 		record.Path = path
 		if info, err := os.Stat(path); err == nil {
 			record.SizeBytes = info.Size()
 		}
-		meta.Backups = append(meta.Backups, record)
-	}
-	// Write metadata to file
-	if err := meta.Write(metadataPath); err != nil {
-		return fmt.Errorf("failed to write metadata %q: %w", metadataPath, err)
+		metadata.Backups = append(metadata.Backups, record)
 	}
 
-	// Ensure buffered log entries are written out
-	// logger.Cleanup()
+	if err := metadata.Write(metadataPath); err != nil {
+		return fmt.Errorf("failed to write metadata to %q: %w", metadataPath, err)
+	}
+
 	return nil
 }
 
-// RestoreAll restores all configured databases from the given source.
+// RestoreAll performs restore for all configured databases from the metadata file.
 func RestoreAll(configPath, metadataPath string) error {
-	metadataFile := filepath.Join(metadataPath, "metadata.json")
 	log, err := logger.Init()
 	if err != nil {
-		return fmt.Errorf("logger init failed: %w", err)
+		return fmt.Errorf("failed to initialize logger: %w", err)
 	}
-	// Initialize database handlers from config
-	dbs, err := InitializeDatabases(configPath)
+
+	databases, err := InitializeDatabases(configPath)
 	if err != nil {
-		return fmt.Errorf("initialize databases: %w", err)
+		return fmt.Errorf("failed to initialize databases: %w", err)
 	}
-	// Load the metadata file
-	var meta backup.Metadata
-	if err := meta.Load(metadataFile); err != nil {
-		return fmt.Errorf("load metadata file %q: %w", metadataFile, err)
+
+	metadataFile := filepath.Join(metadataPath, "metadata.json")
+	var metadata backup.Metadata
+	if err := metadata.Load(metadataFile); err != nil {
+		return fmt.Errorf("failed to load metadata file %q: %w", metadataFile, err)
 	}
-	// Validate count matches
 
-	// Perform restores
-
-	for index, db := range dbs {
-		record := meta.Backups[index]
+	for index, db := range databases {
+		record := metadata.Backups[index]
 		if !record.Success {
-			log.Warn(
-				"skipping restore for failed backup",
+			log.Warn("skipping restore for failed backup",
 				"database", record.Name,
 				"error", record.Error,
 			)
 			continue
 		}
+
 		if err := db.Restore(record.Path); err != nil {
 			return fmt.Errorf("restore failed for %q: %w", record.Name, err)
 		}
 
-		log.Info(
-			"restore completed",
+		log.Info("restore completed",
 			"database", record.Name,
 			"path", record.Path,
 		)
 	}
+
 	return nil
 }
