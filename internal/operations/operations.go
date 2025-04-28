@@ -150,27 +150,46 @@ func writeMetadata(path string, meta *backup.Metadata) error {
 		return fmt.Errorf("create metadata dir %q: %w", filepath.Dir(path), err)
 	}
 	file, err := os.Create(path)
-	if err != nil {
-		return fmt.Errorf("create metadata file %q: %w", path, err)
-	}
-	defer file.Close()
-
-	enc := json.NewEncoder(file)
-	enc.SetIndent("", "  ")
-	return enc.Encode(meta)
-}
-
 // RestoreAll restores all configured databases from the given source.
-// NOTE: it must read the source from metadata.json file
-func RestoreAll(configPath, source string) error {
+func RestoreAll(configPath, metadataPath string) error {
+	metadataFile := filepath.Join(metadataPath, "metadata.json")
+	log, err := logger.Init()
+	if err != nil {
+		return fmt.Errorf("logger init failed: %w", err)
+	}
+	// Initialize database handlers from config
 	dbs, err := InitializeDatabases(configPath)
 	if err != nil {
 		return fmt.Errorf("initialize databases: %w", err)
 	}
-	for _, db := range dbs {
-		if err := db.Restore(source); err != nil {
-			return fmt.Errorf("restore failed for %q: %w", db.GetName(), err)
+	// Load the metadata file
+	var meta backup.Metadata
+	if err := meta.Load(metadataFile); err != nil {
+		return fmt.Errorf("load metadata file %q: %w", metadataFile, err)
+	}
+	// Validate count matches
+
+	// Perform restores
+
+	for index, db := range dbs {
+		record := meta.Backups[index]
+		if !record.Success {
+			log.Warn(
+				"skipping restore for failed backup",
+				"database", record.Name,
+				"error", record.Error,
+			)
+			continue
 		}
+		if err := db.Restore(record.Path); err != nil {
+			return fmt.Errorf("restore failed for %q: %w", record.Name, err)
+		}
+
+		log.Info(
+			"restore completed",
+			"database", record.Name,
+			"path", record.Path,
+		)
 	}
 	return nil
 }
