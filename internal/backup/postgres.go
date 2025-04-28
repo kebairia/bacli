@@ -3,6 +3,7 @@ package backup
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -119,19 +120,20 @@ func WithPostgresTimestampFormat(timeStampFormat string) PostgresOption {
 }
 
 // Backup runs `pg_dump` to back up the database into a timestamped .dump file.
-func (p *Postgres) Backup() (dumpFilePath string, err error) {
+func (p *Postgres) Backup() (backupPath string, err error) {
 	log := p.Logger
+	ctx := context.Background()
 	// e.g. "./backups/postgres/2025-04-24_21-00-00-mydb.dump"
 	timestamp := time.Now().Format(p.TimeStampFormat)
-	dumpFilePath = filepath.Join(
+	backupPath = filepath.Join(
 		p.OutputDir,
 		"postgres",
 		fmt.Sprintf("%s-%s.dump", timestamp, p.Database),
 	)
 
 	// Ensure the parent directory exists
-	if err := os.MkdirAll(filepath.Dir(dumpFilePath), 0o755); err != nil {
-		return "", fmt.Errorf("mkdir %q: %w", filepath.Dir(dumpFilePath), err)
+	if err := os.MkdirAll(filepath.Dir(backupPath), 0o755); err != nil {
+		return "", fmt.Errorf("mkdir %q: %w", filepath.Dir(backupPath), err)
 	}
 
 	// Build pg_dump args
@@ -141,65 +143,100 @@ func (p *Postgres) Backup() (dumpFilePath string, err error) {
 		"-U", p.Username,
 		"-d", p.Database,
 		"-F", p.Method,
-		"-f", dumpFilePath,
+		"-f", backupPath,
 	}
 
-	cmd := exec.CommandContext(context.Background(), "pg_dump", args...)
+	cmd := exec.CommandContext(ctx, "pg_dump", args...)
 	// Pass PGPASSWORD for non-interactive auth
 	cmd.Env = append(os.Environ(), "PGPASSWORD="+p.Password)
 	cmd.Stderr = os.Stderr
 
-	log.Info("Starting PostgreSQL backup",
+	log.Info("backup started",
 		"database", p.Database,
+		"engine", "postgres",
 		"method", p.Method,
-		"output", dumpFilePath,
+		"path", backupPath,
 	)
 
+	startTime := time.Now()
 	if err := cmd.Run(); err != nil {
 		return "", fmt.Errorf("pg_dump failed: %w", err)
 	}
+	executionDuration := time.Since(startTime)
 
-	log.Info("PostgreSQL backup complete",
+	log.Info("backup completed",
 		"database", p.Database,
-		"output", dumpFilePath,
+		"engine", "postgres",
+		"path", backupPath,
+		"duration", executionDuration.String(),
 	)
-	return dumpFilePath, nil
+	return backupPath, nil
 }
 
 // Restore runs `pg_restore` to restore from a .dump file.
 func (p *Postgres) Restore(backupFile string) error {
 	log := p.Logger
+	ctx := context.Background()
+
 	// Ensure the file exists
+	// Check if the backup source file exists
 	if _, err := os.Stat(backupFile); err != nil {
 		return fmt.Errorf("backup file %q not found: %w", backupFile, err)
 	}
 
-	args := []string{
-		"-h", p.Host,
-		"-p", p.Port,
-		"-U", p.Username,
-		"-d", p.Database,
-		"-c",           // clean: drop objects before recreate
-		"-F", p.Method, // must match how it was dumped
-		backupFile,
+	// Build the right command based on p.Method
+	var cmd *exec.Cmd
+	switch p.Method {
+	case "plain":
+		// Plain SQL → use psql -f
+		cmd = exec.CommandContext(ctx, "psql",
+			"-h", p.Host,
+			"-p", p.Port,
+			"-U", p.Username,
+			"-d", p.Database,
+			"-f", backupFile,
+		)
+
+	case "custom", "directory", "tar":
+		cmd = exec.CommandContext(ctx, "pg_restore",
+			"-h", p.Host,
+			"-p", p.Port,
+			"-U", p.Username,
+			"-d", p.Database,
+			"-c", // Clean existing objects
+			"-F", p.Method,
+			backupFile,
+		)
+	default:
+		return fmt.Errorf("unsupported restore method %q", p.Method)
 	}
 
-	cmd := exec.CommandContext(context.Background(), "pg_restore", args...)
+	// Handle non interactive authorization
 	cmd.Env = append(os.Environ(), "PGPASSWORD="+p.Password)
+	cmd.Stdout = io.Discard // I don't want to see the restoring output of postgres
 	cmd.Stderr = os.Stderr
 
-	log.Info("Starting PostgreSQL restore",
+	// Logging
+
+	log.Info("restore started",
 		"database", p.Database,
+		"engine", "postgres",
 		"method", p.Method,
-		"file", backupFile,
+		"source", backupFile,
 	)
 
+	// Run and check for errors
+	startTime := time.Now()
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("pg_restore failed: %w", err)
+		return fmt.Errorf("restore failed (%s): %w", p.Method, err)
 	}
+	executionDuration := time.Since(startTime)
 
-	log.Info("PostgreSQL restore complete",
+	log.Info("restore completed",
 		"database", p.Database,
+		"engine", "postgres",
+		"source", backupFile,
+		"duration", executionDuration.String(),
 	)
 	return nil
 }
@@ -208,6 +245,6 @@ func (p *Postgres) GetName() string {
 	return p.Database
 }
 
-func (p *Postgres) GetPath() string {
-	return filepath.Join(p.OutputDir, "postgres")
+func (p *Postgres) GetEngine() string {
+	return "postgres"
 }
