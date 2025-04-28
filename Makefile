@@ -36,4 +36,5 @@ test:
 clean:
 	@echo "Cleaning up..."
 	rm -f $(BINARY_NAME)
+	rm -rf backups metadata.json
 
