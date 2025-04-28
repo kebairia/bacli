@@ -8,7 +8,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const BackupDir = "/home/zakaria/dox/work/emploitic/backup/"
+const BackupDir = "/home/zakaria/dox/work/emploitic/bacli/"
 
 var restoreCmd = &cobra.Command{
 	Use:   "restore",
@@ -19,9 +19,7 @@ var restoreCmd = &cobra.Command{
 		if err := cfg.LoadConfig(ConfigFile); err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
-		fmt.Printf("Restore databases from ...\n")
 		if err := operations.RestoreAll(ConfigFile, BackupDir); err != nil {
-			return fmt.Errorf("restore failed: %w", err)
 		}
 		return nil
 	},

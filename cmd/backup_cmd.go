@@ -15,12 +15,10 @@ var backupCmd = &cobra.Command{
 		if ConfigFile == "" {
 			fmt.Errorf("Config file is required (-f flag)")
 		}
-		fmt.Println("Starting backup run...")
-		if err := operations.BackupAll(ConfigFile, "/home/zakaria/dox/work/emploitic/backup/metadata.json"); err != nil {
+		if err := operations.BackupAll(ConfigFile, "/home/zakaria/dox/work/emploitic/bacli"); err != nil {
 			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Println("All backups completed.")
 	},
 }
 
