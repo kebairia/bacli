@@ -30,6 +30,8 @@ It uses a simple YAML configuration to manage multiple instances, with structure
 │   ├── restore_cmd.go
 │   └── root.go
 ├── configs              # Configuration files
+│   ├── postgres.yaml
+│   ├── mongodb.yaml
 │   └── config.yaml
 ├── internal             # Internal application packages
 │   ├── backup           # Backup and restore logic (Postgres, MongoDB, MySQL)
@@ -51,9 +53,15 @@ It uses a simple YAML configuration to manage multiple instances, with structure
 ### 1. Define your configuration
 
 ```yaml
+include:
+  - "./configs/postgres.yaml"
+  - "./configs/mongodb.yaml"
 backup:
   output_dir: "./backups"
+  compress: true
   timestamp_format: "2006-01-02_15-04-05"
+metadata:
+  path: "./metadata.json"
 defaults:
   postgres:
     host: "localhost"
@@ -63,23 +71,45 @@ defaults:
     host: "localhost"
     port: "27017"
     method: "archive"
+```
 
+_postgres.yaml_
+
+```yaml
 postgres_instances:
   - username: "user1"
     password: "pass1"
     database: "db1"
-    port: "5432"
+    port: "5433"
     method: "plain"
   - username: "user2"
     password: "pass2"
     database: "db2"
-    port: "5433"
+    port: "5434"
+    method: "directory"
+  - username: "user3"
+    password: "pass3"
+    database: "db3"
+    port: "5435"
+    method: "tar"
+```
 
+_mongodb.yaml_
+
+```yaml
 mongodb_instances:
   - username: "root1"
     password: "secret1"
     database: "testdb1"
-    port: "27017"
+    port: "27018"
+  - username: "root2"
+    password: "secret2"
+    database: "testdb2"
+    port: "27019"
+  - username: "root3"
+    password: "secret3"
+    database: "testdb3"
+    port: "27020"
 ```
 
 ### 2. Run backup
