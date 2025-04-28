@@ -1,41 +1,29 @@
 # -----------------------------------------------------------------------------
 # Author:      Zakaria Kebairia
 # Date:        2025-04-24
-# Version:     1.0
-# Description: Configuration for backup utility covering PostgreSQL and MongoDB
-#              instances. Defines global defaults and per-instance overrides.
+# Version:     1.1
+# Description: Configuration for backup utility covering PostgreSQL and MongoDB.
 # -----------------------------------------------------------------------------
 backup:
-  # Directory where all backups will be saved
-  output_dir: "./backups"
-  # Enable compression for backup archives
-  compress: true
-  # Timestamp format for backup filenames (Go time layout)
-  timestamp_format: "2006-01-02_15-04-05"
+  output_dir: "./backups" # Directory where all backups are saved.
+  compress: true # Enable compression for backup archives.
+  timestamp_format: "2006-01-02_15-04-05" # Go time layout for filenames.
 defaults:
   postgres:
-    # Default host for Postgres instances
-    host: "localhost"
-    # Default port for Postgres instances
-    port: "5432"
-    # Default backup method for Postgres instances
-    method: "custom"
+    host: "localhost" # Default host for Postgres instances.
+    port: "5432" # Default port for Postgres instances.
+    method: "custom" # Default backup method (custom/plain/directory).
   mongodb:
-    # Default host for MongoDB instances
-    # Default value: "localhost"
-    host: "localhost"
-    # Default port for MongoDB instances
-    port: "27017"
-    # Default backup method for MongoDB instances
-    method: "archive"
-    # Enable compression for MongoDB backups
-    compress: true
-# Instance 1 (overrides default port only)
+    host: "localhost" # Default host for MongoDB instances.
+    port: "27017" # Default port for MongoDB instances.
+    method: "archive" # Default backup method (archive).
+    # Note: compression is controlled globally via backup.compress.
 postgres_instances:
   - username: "user1"
     password: "pass1"
-    database: "db1"
+    database: "db10"
     port: "5433"
+    # host, port, method inherited from defaults.
   - username: "user2"
     password: "pass2"
     database: "db2"
@@ -51,6 +39,7 @@ mongodb_instances:
     password: "secret1"
     database: "testdb1"
     port: "27018"
+    # host, port, method inherited from defaults.
   - username: "root2"
     password: "secret2"
     database: "testdb2"
