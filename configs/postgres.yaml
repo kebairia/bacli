@@ -1,0 +1,22 @@
+# -----------------------------------------------------------------------------
+# Author:      Zakaria Kebairia
+# Date:        2025-04-28
+# Version:     1.0
+# Description: PostgreSQL instances for backup.
+# -----------------------------------------------------------------------------
+postgres_instances:
+  - username: "user1"
+    password: "pass1"
+    database: "db1"
+    port: "5433"
+    method: "plain"
+  - username: "user2"
+    password: "pass2"
+    database: "db2"
+    port: "5434"
+    method: "directory"
+  - username: "user3"
+    password: "pass3"
+    database: "db3"
+    port: "5435"
+    method: "tar"

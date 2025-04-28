@@ -1,0 +1,19 @@
+# -----------------------------------------------------------------------------
+# Author:      Zakaria Kebairia
+# Date:        2025-04-28
+# Version:     1.0
+# Description: MongoDB instances for backup.
+# -----------------------------------------------------------------------------
+mongodb_instances:
+  - username: "root1"
+    password: "secret1"
+    database: "testdb1"
+    port: "27018"
+  - username: "root2"
+    password: "secret2"
+    database: "testdb2"
+    port: "27019"
+  - username: "root3"
+    password: "secret3"
+    database: "testdb3"
+    port: "27020"

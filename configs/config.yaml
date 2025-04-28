@@ -1,50 +1,39 @@
 # -----------------------------------------------------------------------------
 # Author:      Zakaria Kebairia
-# Date:        2025-04-24
-# Version:     1.1
-# Description: Configuration for backup utility covering PostgreSQL and MongoDB.
+# Date:        2025-04-28
+# Version:     1.2
+# Description: Main configuration for backup utility.
 # -----------------------------------------------------------------------------
+include:
+  - "./configs/postgres.yaml"
+  # - "./configs/mongodb.yaml"
 backup:
-  output_dir: "./backups" # Directory where all backups are saved.
-  compress: true # Enable compression for backup archives.
-  timestamp_format: "2006-01-02_15-04-05" # Go time layout for filenames.
+  # Directory where all backups are saved
+  output_dir: "./backups"
+  # Enable compression for backup archives
+  compress: true
+  # Go time layout for filenames
+  timestamp_format: "2006-01-02_15-04-05"
+metadata:
+  # Where to write metadata.json
+  path: "~/dox"
+  # path: "../metadata.json"
+  # Optional: compress metadata file (future feature)
+  # compress: false
+  # # Future-proof: allow "json", "yaml" metadata
+  # format: "json"
 defaults:
   postgres:
-    host: "localhost" # Default host for Postgres instances.
-    port: "5432" # Default port for Postgres instances.
-    method: "custom" # Default backup method (custom/plain/directory).
+    # Default Postgres host
+    host: "localhost"
+    # Default Postgres port
+    port: "5432"
+    # Default backup method for Postgres
+    method: "custom"
   mongodb:
-    host: "localhost" # Default host for MongoDB instances.
-    port: "27017" # Default port for MongoDB instances.
-    method: "archive" # Default backup method (archive).
-    # Note: compression is controlled globally via backup.compress.
-postgres_instances:
-  - username: "user1"
-    password: "pass1"
-    database: "db10"
-    port: "5433"
-    # host, port, method inherited from defaults.
-  - username: "user2"
-    password: "pass2"
-    database: "db2"
-    port: "5434"
-    method: "directory"
-  - username: "user3"
-    password: "pass3"
-    database: "db3"
-    port: "5435"
-    method: "plain"
-mongodb_instances:
-  - username: "root1"
-    password: "secret1"
-    database: "testdb1"
-    port: "27018"
-    # host, port, method inherited from defaults.
-  - username: "root2"
-    password: "secret2"
-    database: "testdb2"
-    port: "27019"
-  - username: "root3"
-    password: "secret3"
-    database: "testdb3"
-    port: "27020"
+    # Default MongoDB host
+    host: "localhost"
+    # Default MongoDB port
+    port: "27017"
+    # Default backup method for MongoDB
+    method: "archive"

@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-const metadataFilename = "metadata.json"
+const MetadataFilename = "metadata.json"
 
 // Metadata for a single DB backup run
 type DBRecord struct {
@@ -53,7 +53,7 @@ func (m *Metadata) Load(filePath string) error {
 // Write metadata file
 func (m *Metadata) Write(dirPath string) error {
 	// Build full path to metadata file
-	filePath := filepath.Join(dirPath, metadataFilename)
+	filePath := filepath.Join(dirPath, MetadataFilename)
 
 	// Ensure directory exists
 	if err := EnsureDirectoryExist(filePath); err != nil {
