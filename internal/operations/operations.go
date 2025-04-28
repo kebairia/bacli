@@ -1,7 +1,6 @@
 package operations
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -94,6 +93,7 @@ func RestoreDatabase(db backup.Database, dumpFile string) error {
 // performs BackupDatabase on each in turn. On first error, it
 // aborts and returns that error. Finally, it flushes the logger.
 func BackupAll(configPath, metadataPath string) error {
+	// metadataFile := filepath.Join(metadataPath, "metadata.json")
 	log, err := logger.Init()
 	if err != nil {
 		return fmt.Errorf("logger init failed: %w", err)
@@ -122,7 +122,7 @@ func BackupAll(configPath, metadataPath string) error {
 			record.Error = err.Error()
 			record.Path = "None"
 			meta.Backups = append(meta.Backups, record)
-			log.Error("backup failed for %q: %w", db.GetName(), err)
+			log.Error("backup failed for %q: %w", record.Name, err)
 			continue
 		}
 		// Record successful backup
@@ -134,8 +134,8 @@ func BackupAll(configPath, metadataPath string) error {
 		meta.Backups = append(meta.Backups, record)
 	}
 	// Write metadata to file
-	if err := writeMetadata(metadataPath, &meta); err != nil {
-		return fmt.Errorf("write metadata: %w", err)
+	if err := meta.Write(metadataPath); err != nil {
+		return fmt.Errorf("failed to write metadata %q: %w", metadataPath, err)
 	}
 
 	// Ensure buffered log entries are written out
@@ -143,13 +143,6 @@ func BackupAll(configPath, metadataPath string) error {
 	return nil
 }
 
-// writeMetadata writes the metadata JSON to the specified path.
-func writeMetadata(path string, meta *backup.Metadata) error {
-	// Ensure directory exists
-	if err := backup.EnsureDirectoryExist(path); err != nil {
-		return fmt.Errorf("create metadata dir %q: %w", filepath.Dir(path), err)
-	}
-	file, err := os.Create(path)
 // RestoreAll restores all configured databases from the given source.
 func RestoreAll(configPath, metadataPath string) error {
 	metadataFile := filepath.Join(metadataPath, "metadata.json")
