@@ -252,3 +252,7 @@ func (p *Postgres) GetName() string {
 func (p *Postgres) GetEngine() string {
 	return "postgres"
 }
+
+func (p *Postgres) GetPath() string {
+	return filepath.Join(p.OutputDir, "postgres")
+}

@@ -231,3 +231,7 @@ func (m *MongoDB) GetName() string {
 func (m *MongoDB) GetEngine() string {
 	return "mongodb"
 }
+
+func (m *MongoDB) GetPath() string {
+	return filepath.Join(m.OutputDir, "mongodb")
+}
