@@ -24,6 +24,7 @@ type DBRecord struct {
 // Top-level metadata file
 type Metadata struct {
 	RunAt   time.Time  `json:"run_at"`
+	Engine  string     `json:"engine"`
 	Backups []DBRecord `json:"backups"`
 }
 
