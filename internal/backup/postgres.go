@@ -26,6 +26,7 @@ type Postgres struct {
 	Method          string // e.g. "custom", "plain", "directory"
 	OutputDir       string
 	TimeStampFormat string
+	Timeout         time.Duration
 	Logger          logger.Logger
 }
 
@@ -45,6 +46,7 @@ func NewPostgres(cfg config.Config, opts ...PostgresOption) (*Postgres, error) {
 		Method:          cfg.Defaults.Postgres.Method,
 		OutputDir:       cfg.Backup.OutputDir,
 		TimeStampFormat: cfg.Backup.TimestampFormat,
+		Timeout:         cfg.Backup.Timeout,
 		Logger:          log,
 	}
 	for _, opt := range opts {
@@ -122,7 +124,8 @@ func WithPostgresTimestampFormat(timeStampFormat string) PostgresOption {
 // Backup runs `pg_dump` to back up the database into a timestamped .dump file.
 func (p *Postgres) Backup() (backupPath string, err error) {
 	log := p.Logger
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), p.Timeout)
+	defer cancel()
 	// e.g. "./backups/postgres/2025-04-24_21-00-00-mydb.dump"
 	timestamp := time.Now().Format(p.TimeStampFormat)
 	backupPath = filepath.Join(
@@ -176,7 +179,8 @@ func (p *Postgres) Backup() (backupPath string, err error) {
 // Restore runs `pg_restore` to restore from a .dump file.
 func (p *Postgres) Restore(backupFile string) error {
 	log := p.Logger
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), p.Timeout)
+	defer cancel()
 
 	// Ensure the file exists
 	// Check if the backup source file exists

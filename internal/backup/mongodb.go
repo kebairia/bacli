@@ -26,6 +26,7 @@ type MongoDB struct {
 	Method          string
 	OutputDir       string
 	TimestampFormat string
+	Timeout         time.Duration
 	Logger          logger.Logger
 }
 
@@ -45,6 +46,7 @@ func NewMongoDB(cfg config.Config, opts ...MongoDBOption) (*MongoDB, error) {
 		Method:          cfg.Defaults.MongoDB.Method,
 		OutputDir:       cfg.Backup.OutputDir,
 		TimestampFormat: cfg.Backup.TimestampFormat,
+		Timeout:         cfg.Backup.Timeout,
 		Logger:          log,
 	}
 
@@ -123,7 +125,8 @@ func WithMongoTimestampFormat(format string) MongoDBOption {
 // Backup creates a backup of the MongoDB database using mongodump.
 func (m *MongoDB) Backup() (string, error) {
 	log := m.Logger
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), m.Timeout)
+	defer cancel()
 
 	timestamp := time.Now().Format(m.TimestampFormat)
 	backupPath := filepath.Join(m.OutputDir, "mongodb", fmt.Sprintf("%s-%s", timestamp, m.Database))
@@ -177,7 +180,8 @@ func (m *MongoDB) Backup() (string, error) {
 // Restore restores a MongoDB database from a backup directory using mongorestore.
 func (m *MongoDB) Restore(sourceDir string) error {
 	log := m.Logger
-	ctx := context.Background()
+	ctx, cancel := context.WithTimeout(context.Background(), m.Timeout)
+	defer cancel()
 
 	if _, err := os.Stat(sourceDir); err != nil {
 		return fmt.Errorf("backup source %q not found: %w", sourceDir, err)

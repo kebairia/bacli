@@ -14,6 +14,7 @@ backup:
   compress: true
   # Go time layout for filenames
   timestamp_format: "2006-01-02_15-04-05"
+  timeout: "30m"
 metadata:
   # Where to write metadata.json
   path: "~/dox"
