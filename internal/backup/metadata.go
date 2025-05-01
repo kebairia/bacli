@@ -57,7 +57,7 @@ func (m *Metadata) Write(dirPath string) error {
 	filePath := filepath.Join(dirPath, MetadataFilename)
 
 	// Ensure directory exists
-	if err := EnsureDirectoryExist(filePath); err != nil {
+	if err := EnsureDirectoryExist(dirPath); err != nil {
 		return fmt.Errorf("ensure metadata directory %q: %w", dirPath, err)
 	}
 

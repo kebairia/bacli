@@ -19,7 +19,7 @@ var restoreCmd = &cobra.Command{
 		if err := cfg.LoadConfig(ConfigFile); err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
-		if err := operations.RestoreAll(ConfigFile, BackupDir); err != nil {
+		if err := operations.RestoreAll(ConfigFile); err != nil {
 		}
 		return nil
 	},

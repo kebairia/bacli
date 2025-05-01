@@ -123,13 +123,13 @@ func WithMongoTimestampFormat(format string) MongoDBOption {
 }
 
 // Backup creates a backup of the MongoDB database using mongodump.
-func (m *MongoDB) Backup() (string, error) {
+func (m *MongoDB) Backup() (backupPath string, err error) {
 	log := m.Logger
 	ctx, cancel := context.WithTimeout(context.Background(), m.Timeout)
 	defer cancel()
 
 	timestamp := time.Now().Format(m.TimestampFormat)
-	backupPath := filepath.Join(m.OutputDir, "mongodb", fmt.Sprintf("%s-%s", timestamp, m.Database))
+	backupPath = filepath.Join(m.OutputDir, "mongodb", fmt.Sprintf("%s-%s", timestamp, m.Database))
 
 	if err := os.MkdirAll(filepath.Dir(backupPath), 0o755); err != nil {
 		return "", fmt.Errorf("failed to create backup directory: %w", err)

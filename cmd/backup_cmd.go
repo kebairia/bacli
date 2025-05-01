@@ -15,7 +15,7 @@ var backupCmd = &cobra.Command{
 		if ConfigFile == "" {
 			fmt.Errorf("Config file is required (-f flag)")
 		}
-		if err := operations.BackupAll(ConfigFile, "/home/zakaria/dox/work/emploitic/bacli"); err != nil {
+		if err := operations.BackupAll(ConfigFile); err != nil {
 			fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 			os.Exit(1)
 		}
