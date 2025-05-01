@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -19,9 +20,10 @@ type Config struct {
 
 // BackupConfig defines global backup settings.
 type BackupConfig struct {
-	OutputDir       string `yaml:"output_dir"`
-	Compress        bool   `yaml:"compress"`
-	TimestampFormat string `yaml:"timestamp_format"`
+	OutputDir       string        `yaml:"output_dir"`
+	Compress        bool          `yaml:"compress"`
+	TimestampFormat string        `yaml:"timestamp_format"`
+	Timeout         time.Duration `yaml:"timeout"`
 }
 
 // MetadataConfig defines where metadata.json is stored.
