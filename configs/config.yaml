@@ -4,6 +4,9 @@
 # Version:     1.2
 # Description: Main configuration for backup utility.
 # -----------------------------------------------------------------------------
+vault:
+  address: ""
+  token: ""
 include:
   - "./configs/postgres.yaml"
   - "./configs/mongodb.yaml"

@@ -7,10 +7,15 @@ import (
 	"sync"
 	"time"
 
+	vault "github.com/hashicorp/vault/api"
 	"github.com/kebairia/backup/internal/backup"
 	"github.com/kebairia/backup/internal/config"
 	"github.com/kebairia/backup/internal/logger"
 )
+
+// helper to read KV v2 secrets at path "secret/<engine>/<db>"
+func LoadVaultCreds(client *vault.Client, engine, db string) {
+}
 
 // InitializeDatabases loads, parses, and validates the YAML config at configPath.
 // It constructs and returns a slice of Database instances (Postgres + MongoDB).
