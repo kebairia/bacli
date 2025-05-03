@@ -7,23 +7,24 @@ import (
 	"sync"
 	"time"
 
-	vault "github.com/hashicorp/vault/api"
 	"github.com/kebairia/backup/internal/backup"
 	"github.com/kebairia/backup/internal/config"
 	"github.com/kebairia/backup/internal/logger"
+	vault "github.com/kebairia/backup/internal/vault"
 )
-
-// helper to read KV v2 secrets at path "secret/<engine>/<db>"
-func LoadVaultCreds(client *vault.Client, engine, db string) {
-}
 
 // InitializeDatabases loads, parses, and validates the YAML config at configPath.
 // It constructs and returns a slice of Database instances (Postgres + MongoDB).
 func InitializeDatabases(configPath string) ([]backup.Database, error) {
-	// Parse configuration file into cfg
-	var cfg config.Config
-	if err := cfg.LoadConfig(configPath); err != nil {
+	// Parse configuration file into config
+	var config config.Config
+	if err := config.Load(configPath); err != nil {
 		return nil, fmt.Errorf("could not parse config %q: %w", configPath, err)
+	}
+	// Init Vault client
+	vaultClient, err := vault.NewClient(config.Vault.Address, config.Vault.Token)
+	if err != nil {
+		return nil, fmt.Errorf("vault client init: %w", err)
 	}
 
 	// Retrieve the global logger (must be initialized already)
@@ -33,20 +34,26 @@ func InitializeDatabases(configPath string) ([]backup.Database, error) {
 	var dbs []backup.Database
 
 	// --- Postgres instances ---
-	for _, ps := range cfg.PostgresInstances {
+	for _, instance := range config.Postgres.Instances {
+		path := fmt.Sprintf("%s/%s", config.Postgres.VaultBasePath, instance.Name)
+		secret, err := vaultClient.ReadSecret(path)
+		if err != nil {
+			return nil, fmt.Errorf("vault read %q: %w", path, err)
+		}
+		// Extract fields
 		// Build functional options from config
 		opts := []backup.PostgresOption{
-			backup.WithPostgresCredentials(ps.Username, ps.Password),
-			backup.WithPostgresDatabase(ps.Database),
-			backup.WithPostgresHost(ps.Host),
-			backup.WithPostgresPort(ps.Port),
-			backup.WithPostgresMethod(ps.Method),
+			backup.WithPostgresCredentials(secret.Username, secret.Password),
+			backup.WithPostgresDatabase(secret.Database),
+			backup.WithPostgresHost(secret.Host),
+			backup.WithPostgresPort(secret.Port),
+			backup.WithPostgresMethod(instance.Method),
 		}
 
 		// Create a Postgres backup handler
-		pg, err := backup.NewPostgres(cfg, opts...)
+		pg, err := backup.NewPostgres(config, opts...)
 		if err != nil {
-			return nil, fmt.Errorf("failed creating Postgres instance %q: %w", ps.Database, err)
+			return nil, fmt.Errorf("failed creating Postgres instance %q: %w", secret.Database, err)
 		}
 
 		// Inject the shared logger
@@ -57,17 +64,23 @@ func InitializeDatabases(configPath string) ([]backup.Database, error) {
 	}
 
 	// --- MongoDB instances ---
-	for _, m := range cfg.MongoInstances {
-		opts := []backup.MongoDBOption{
-			backup.WithMongoCredentials(m.Username, m.Password),
-			backup.WithMongoDatabase(m.Database),
-			backup.WithMongoHost(m.Host),
-			backup.WithMongoPort(m.Port),
-			backup.WithMongoMethod(m.Method),
-		}
-		mg, err := backup.NewMongoDB(cfg, opts...)
+	for _, instance := range config.Mongo.Instances {
+
+		path := fmt.Sprintf("%s/%s", config.Mongo.VaultBasePath, instance.Name)
+		secret, err := vaultClient.ReadSecret(path)
 		if err != nil {
-			return nil, fmt.Errorf("failed creating MongoDB instance %q: %w", m.Database, err)
+			return nil, fmt.Errorf("vault read %q: %w", path, err)
+		}
+		opts := []backup.MongoDBOption{
+			backup.WithMongoCredentials(secret.Username, secret.Password),
+			backup.WithMongoDatabase(secret.Database),
+			backup.WithMongoHost(secret.Host),
+			backup.WithMongoPort(secret.Port),
+			backup.WithMongoMethod(instance.Method),
+		}
+		mg, err := backup.NewMongoDB(config, opts...)
+		if err != nil {
+			return nil, fmt.Errorf("failed creating MongoDB instance %q: %w", secret.Database, err)
 		}
 		mg.Logger = log
 		dbs = append(dbs, mg)
