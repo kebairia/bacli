@@ -8,15 +8,13 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const BackupDir = "/home/zakaria/dox/work/emploitic/bacli/"
-
 var restoreCmd = &cobra.Command{
 	Use:   "restore",
 	Short: "Restore all databases based on config",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		// Load config to derive default output directory
-		var cfg config.Config
-		if err := cfg.LoadConfig(ConfigFile); err != nil {
+		var config config.Config
+		if err := config.Load(ConfigFile); err != nil {
 			return fmt.Errorf("failed to load config: %w", err)
 		}
 		if err := operations.RestoreAll(ConfigFile); err != nil {

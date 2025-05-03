@@ -38,12 +38,10 @@ func NewMongoDB(cfg config.Config, opts ...MongoDBOption) (*MongoDB, error) {
 	}
 
 	m := &MongoDB{
-		Username:        cfg.Defaults.MongoDB.Username,
-		Password:        cfg.Defaults.MongoDB.Password,
-		Database:        cfg.Defaults.MongoDB.Database,
-		Host:            cfg.Defaults.MongoDB.Host,
-		Port:            cfg.Defaults.MongoDB.Port,
-		Method:          cfg.Defaults.MongoDB.Method,
+		// Username:        cfg.Defaults.MongoDB.Username,
+		Host:            cfg.Defaults.Mongo.Host,
+		Port:            cfg.Defaults.Mongo.Port,
+		Method:          cfg.Defaults.Mongo.Method,
 		OutputDir:       cfg.Backup.OutputDir,
 		TimestampFormat: cfg.Backup.TimestampFormat,
 		Timeout:         cfg.Backup.Timeout,
@@ -129,7 +127,12 @@ func (m *MongoDB) Backup() (backupPath string, err error) {
 	defer cancel()
 
 	timestamp := time.Now().Format(m.TimestampFormat)
-	backupPath = filepath.Join(m.OutputDir, "mongodb", fmt.Sprintf("%s-%s", timestamp, m.Database))
+	backupPath = filepath.Join(
+		m.OutputDir,
+		"mongodb",
+		m.Database,
+		fmt.Sprintf("%s-%s.dump", timestamp, m.Database),
+	)
 
 	if err := os.MkdirAll(filepath.Dir(backupPath), 0o755); err != nil {
 		return "", fmt.Errorf("failed to create backup directory: %w", err)
@@ -143,7 +146,7 @@ func (m *MongoDB) Backup() (backupPath string, err error) {
 		"--db=" + m.Database,
 		"--quiet",
 		"--authenticationDatabase=admin",
-		"--out=" + backupPath,
+		"--archive=" + backupPath,
 	}
 
 	cmd := exec.CommandContext(ctx, "mongodump", args...)
@@ -187,6 +190,8 @@ func (m *MongoDB) Restore(sourceDir string) error {
 		return fmt.Errorf("backup source %q not found: %w", sourceDir, err)
 	}
 
+	// NOTE: Add other options "--dir=" + sourceDir,
+
 	args := []string{
 		"--host=" + m.Host,
 		"--port=" + m.Port,
@@ -196,7 +201,7 @@ func (m *MongoDB) Restore(sourceDir string) error {
 		"--authenticationDatabase=admin",
 		"--drop",
 		"--quiet",
-		"--dir=" + sourceDir,
+		"--archive=" + sourceDir,
 	}
 
 	cmd := exec.CommandContext(ctx, "mongorestore", args...)

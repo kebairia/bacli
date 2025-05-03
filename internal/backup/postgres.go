@@ -38,9 +38,6 @@ func NewPostgres(cfg config.Config, opts ...PostgresOption) (*Postgres, error) {
 		return nil, fmt.Errorf("logger init failed: %w", err)
 	}
 	p := &Postgres{
-		Username:        cfg.Defaults.Postgres.Username,
-		Password:        cfg.Defaults.Postgres.Password,
-		Database:        cfg.Defaults.Postgres.Database,
 		Host:            cfg.Defaults.Postgres.Host,
 		Port:            cfg.Defaults.Postgres.Port,
 		Method:          cfg.Defaults.Postgres.Method,
@@ -131,6 +128,7 @@ func (p *Postgres) Backup() (backupPath string, err error) {
 	backupPath = filepath.Join(
 		p.OutputDir,
 		"postgres",
+		p.Database,
 		fmt.Sprintf("%s-%s.dump", timestamp, p.Database),
 	)
 

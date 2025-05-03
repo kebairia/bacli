@@ -205,19 +205,19 @@ func RestoreAll(configPath string) error {
 	}
 
 	// 2) Reload config to get Backup.OutputDir
-	var cfg config.Config
-	if err := cfg.LoadConfig(configPath); err != nil {
+	var config config.Config
+	if err := config.Load(configPath); err != nil {
 		return fmt.Errorf("load config %q: %w", configPath, err)
 	}
 
 	// 3) Find all metadata.json files
-	globPattern := filepath.Join(cfg.Backup.OutputDir, "*", "metadata.json")
+	globPattern := filepath.Join(config.Backup.OutputDir, "*", "metadata.json")
 	metaPaths, err := filepath.Glob(globPattern)
 	if err != nil {
 		return fmt.Errorf("glob %q: %w", globPattern, err)
 	}
 	if len(metaPaths) == 0 {
-		return fmt.Errorf("no metadata.json files found under %q", cfg.Backup.OutputDir)
+		return fmt.Errorf("no metadata.json files found under %q", config.Backup.OutputDir)
 	}
 
 	var meta backup.Metadata

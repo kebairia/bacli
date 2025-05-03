@@ -8,17 +8,29 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// Config holds the entire backup configuration loaded from YAML files.
-type Config struct {
-	Include           []string           `yaml:"include"`
-	Backup            BackupConfig       `yaml:"backup"`
-	Metadata          MetadataConfig     `yaml:"metadata"`
-	Defaults          DefaultConfig      `yaml:"defaults"`
-	PostgresInstances []PostgreSQLConfig `yaml:"postgres_instances"`
-	MongoInstances    []MongoDBConfig    `yaml:"mongodb_instances"`
+// VaultConfig holds connection settings for HashiCorp Vault.
+type VaultConfig struct {
+	Address string `yaml:"address"`
+	Token   string `yaml:"token,omitempty"`
 }
 
-// BackupConfig defines global backup settings.
+// DBInstance represents a single database instance.
+type DBInstance struct {
+	Name   string `yaml:"name"`
+	Method string `yaml:"method,omitempty"`
+}
+
+// DBGroup groups related database instances under the same Vault KV path.
+type DBGroup struct {
+	// Default dump/restore method for instances in this group (e.g. custom, plain).
+	Method string `yaml:"method,omitempty"`
+	// Prefix under the Vault KV engine, e.g. "secret/data/backups/postgres".
+	VaultBasePath string `yaml:"vault_base_path"`
+	// List of concrete database instances.
+	Instances []DBInstance `yaml:"instances"`
+}
+
+// BackupConfig contains global backup parameters.
 type BackupConfig struct {
 	OutputDir       string        `yaml:"output_dir"`
 	Compress        bool          `yaml:"compress"`
@@ -26,103 +38,95 @@ type BackupConfig struct {
 	Timeout         time.Duration `yaml:"timeout"`
 }
 
-// MetadataConfig defines where metadata.json is stored.
+// MetadataConfig points to the metadata.json location.
 type MetadataConfig struct {
 	Path string `yaml:"path"`
 }
 
-// DefaultConfig holds default connection settings for all database types.
+// DefaultConfig provides per‑engine fallback values.
 type DefaultConfig struct {
-	Postgres PostgresDefaults `yaml:"postgres"`
-	MongoDB  MongoDefaults    `yaml:"mongodb"`
+	Postgres struct {
+		Host   string `yaml:"host,omitempty"`
+		Port   string `yaml:"port,omitempty"`
+		Method string `yaml:"method,omitempty"`
+	} `yaml:"postgres"`
+	Mongo struct {
+		Host   string `yaml:"host,omitempty"`
+		Port   string `yaml:"port,omitempty"`
+		Method string `yaml:"method,omitempty"`
+	} `yaml:"mongodb"`
 }
 
-// PostgresDefaults are fallback settings for Postgres instances.
-type PostgresDefaults struct {
-	Username string `yaml:"username,omitempty"`
-	Password string `yaml:"password,omitempty"`
-	Database string `yaml:"database,omitempty"`
-	Host     string `yaml:"host,omitempty"`
-	Port     string `yaml:"port,omitempty"`
-	Method   string `yaml:"method,omitempty"`
+// Config is the top‑level structure representing the entire YAML file.
+type Config struct {
+	Include  []string       `yaml:"include"`
+	Vault    VaultConfig    `yaml:"vault"`
+	Backup   BackupConfig   `yaml:"backup"`
+	Metadata MetadataConfig `yaml:"metadata"`
+	Defaults DefaultConfig  `yaml:"defaults"`
+
+	Postgres DBGroup `yaml:"postgres"`
+	Mongo    DBGroup `yaml:"mongodb"`
 }
 
-// MongoDefaults are fallback settings for MongoDB instances.
-type MongoDefaults struct {
-	Username string `yaml:"username,omitempty"`
-	Password string `yaml:"password,omitempty"`
-	Database string `yaml:"database,omitempty"`
-	Host     string `yaml:"host,omitempty"`
-	Port     string `yaml:"port,omitempty"`
-	Method   string `yaml:"method,omitempty"`
-}
-
-// PostgreSQLConfig defines a single Postgres instance configuration.
-type PostgreSQLConfig struct {
-	Username string `yaml:"username,omitempty"`
-	Password string `yaml:"password,omitempty"`
-	Database string `yaml:"database,omitempty"`
-	Host     string `yaml:"host,omitempty"`
-	Port     string `yaml:"port,omitempty"`
-	Method   string `yaml:"method,omitempty"`
-}
-
-// MongoDBConfig defines a single MongoDB instance configuration.
-type MongoDBConfig struct {
-	Username string `yaml:"username,omitempty"`
-	Password string `yaml:"password,omitempty"`
-	Database string `yaml:"database,omitempty"`
-	Host     string `yaml:"host,omitempty"`
-	Port     string `yaml:"port,omitempty"`
-	Method   string `yaml:"method,omitempty"`
-}
-
-// IncludedInstances is used to parse postgres/mongo instances from included files.
-type IncludedInstances struct {
-	PostgresInstances []PostgreSQLConfig `yaml:"postgres_instances"`
-	MongoInstances    []MongoDBConfig    `yaml:"mongodb_instances"`
-}
-
-// LoadConfig loads the main configuration file and all included instance files.
-func (config *Config) LoadConfig(filename string) error {
-	// 1. Load the main configuration file
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return fmt.Errorf("failed to read main config file: %w", err)
-	}
-	if err := yaml.Unmarshal(data, config); err != nil {
-		return fmt.Errorf("failed to parse main config file: %w", err)
+// Load reads the main YAML file and any referenced include files, merging the
+// result into *Config.
+func (config *Config) Load(filename string) error {
+	// Load the main configuration file
+	if err := config.parseFile(filename); err != nil {
+		return fmt.Errorf("failed to load main config file: %w", err)
 	}
 
-	// 2. Load included instance files, if any
-	for _, includePath := range config.Include {
-		if err := config.loadIncludedFile(includePath); err != nil {
-			return fmt.Errorf("failed to load included file %q: %w", includePath, err)
+	// Load included instance files, if any
+	for _, file := range config.Include {
+		if err := config.includeFile(file); err != nil {
+			return fmt.Errorf("failed to load included file %q: %w", file, err)
 		}
 	}
 
 	return nil
 }
 
-// loadIncludedFile loads postgres.yaml, mongodb.yaml, etc., and appends instances to the config.
-func (config *Config) loadIncludedFile(path string) error {
+// includedFile loads postgres.yaml, mongodb.yaml, etc., and appends instances to the config.
+func (config *Config) includeFile(path string) error {
+	// 1. Load the main configuration file
+	if err := config.parseFile(path); err != nil {
+		return fmt.Errorf("failed to parse config file %q: %w", path, err)
+	}
+
+	// Temporary holder to detect which block is present
+	var include struct {
+		Postgres *DBGroup `yaml:"postgres"`
+		Mongo    *DBGroup `yaml:"mongodb"`
+	}
+
+	// Merge Postgres group: override base path if provided and append instances
+	if include.Postgres != nil {
+		if include.Postgres.VaultBasePath != "" {
+			config.Postgres.VaultBasePath = include.Postgres.VaultBasePath
+		}
+		config.Postgres.Instances = append(config.Postgres.Instances, include.Postgres.Instances...)
+	}
+	// Merge MongoDB group
+	if include.Mongo != nil {
+		if include.Mongo.VaultBasePath != "" {
+			config.Mongo.VaultBasePath = include.Mongo.VaultBasePath
+		}
+		config.Mongo.Instances = append(config.Mongo.Instances, include.Mongo.Instances...)
+	}
+
+	return nil
+}
+
+// parseFile reads a YAML file from disk and unmarshals it into dst.
+func (config *Config) parseFile(path string) error {
+	// Loadaa the file
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return fmt.Errorf("failed to read included file %q: %w", path, err)
+		return fmt.Errorf("failed to read config file %q: %w", path, err)
 	}
-
-	var included IncludedInstances
-	if err := yaml.Unmarshal(data, &included); err != nil {
-		return fmt.Errorf("failed to parse included file %q: %w", path, err)
+	if err := yaml.Unmarshal(data, config); err != nil {
+		return fmt.Errorf("failed to unmarshal config file %q: %w", path, err)
 	}
-
-	// Append found instances
-	if len(included.PostgresInstances) > 0 {
-		config.PostgresInstances = append(config.PostgresInstances, included.PostgresInstances...)
-	}
-	if len(included.MongoInstances) > 0 {
-		config.MongoInstances = append(config.MongoInstances, included.MongoInstances...)
-	}
-
 	return nil
 }
