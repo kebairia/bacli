@@ -4,3 +4,8 @@ backups
 notes.md
 /bacli
 *.json
+/.terraform.lock.hcl
+/.terraform/
+/coverage.out
+/terraform.tfstate
+/terraform.tfstate.backup
