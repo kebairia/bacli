@@ -9,3 +9,4 @@ notes.md
 /coverage.out
 /terraform.tfstate
 /terraform.tfstate.backup
+/configs/config-vault.yaml
