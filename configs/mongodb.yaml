@@ -8,6 +8,5 @@ mongodb:
   vault_base_path: "secret/data/mongodb"
   instances:
     - name: "db1"
-      method: "archive"
     - name: "db2"
     - name: "db3"

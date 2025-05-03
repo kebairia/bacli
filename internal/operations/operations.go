@@ -10,7 +10,7 @@ import (
 	"github.com/kebairia/backup/internal/backup"
 	"github.com/kebairia/backup/internal/config"
 	"github.com/kebairia/backup/internal/logger"
-	vault "github.com/kebairia/backup/internal/vault"
+	"github.com/kebairia/backup/internal/vault"
 )
 
 // InitializeDatabases loads, parses, and validates the YAML config at configPath.

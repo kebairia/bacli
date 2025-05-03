@@ -13,6 +13,13 @@ import (
 	"github.com/kebairia/backup/internal/logger"
 )
 
+const (
+	MethodDir         = "directory"
+	MethodDirGzip     = "directory-gzip"
+	MethodArchive     = "archive"
+	MethodArchiveGzip = "archive-gzip"
+)
+
 // MongoDBOption defines a functional option for configuring a MongoDB instance.
 type MongoDBOption func(*MongoDB)
 
@@ -138,15 +145,38 @@ func (m *MongoDB) Backup() (backupPath string, err error) {
 		return "", fmt.Errorf("failed to create backup directory: %w", err)
 	}
 
-	args := []string{
+	var args []string
+
+	base := []string{
 		"--host=" + m.Host,
 		"--port=" + m.Port,
 		"--username=" + m.Username,
 		"--password=" + m.Password,
+		"--authenticationDatabase=admin",
 		"--db=" + m.Database,
 		"--quiet",
-		"--authenticationDatabase=admin",
-		"--archive=" + backupPath,
+	}
+	switch m.Method {
+	case MethodDir:
+		args = append(base,
+			"--out="+backupPath,
+		)
+	case MethodDirGzip:
+		args = append(base,
+			"--out="+backupPath,
+			"--gzip",
+		)
+
+	case MethodArchive:
+		args = append(base,
+			"--archive="+backupPath,
+		)
+	case MethodArchiveGzip:
+		args = append(base,
+			"--archive="+backupPath,
+			"--gzip",
+		)
+
 	}
 
 	cmd := exec.CommandContext(ctx, "mongodump", args...)
@@ -191,20 +221,42 @@ func (m *MongoDB) Restore(sourceDir string) error {
 	}
 
 	// NOTE: Add other options "--dir=" + sourceDir,
-
-	args := []string{
+	var cmd *exec.Cmd
+	base := []string{
 		"--host=" + m.Host,
 		"--port=" + m.Port,
 		"--username=" + m.Username,
 		"--password=" + m.Password,
-		"--nsInclude=" + m.Database + ".*",
 		"--authenticationDatabase=admin",
-		"--drop",
+		"--nsInclude=" + m.Database + ".*", // restore only this DB’s namespaces
+		"--drop",                           // replace collections if they already exist
 		"--quiet",
-		"--archive=" + sourceDir,
+	}
+	var args []string
+	switch m.Method {
+	case MethodDir:
+		args = append(base,
+			"--dir="+sourceDir,
+		)
+
+	case MethodDirGzip:
+		args = append(base,
+			"--dir="+sourceDir,
+			"--gzip",
+		)
+	case MethodArchive:
+		args = append(base,
+			"--archive="+sourceDir, // read .archive file
+		)
+	case MethodArchiveGzip:
+		args = append(base,
+			"--archive="+sourceDir,
+			"--gzip",
+		)
+
 	}
 
-	cmd := exec.CommandContext(ctx, "mongorestore", args...)
+	cmd = exec.CommandContext(ctx, "mongorestore", args...)
 	cmd.Stdout = io.Discard
 	cmd.Stderr = os.Stderr
 
