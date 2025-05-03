@@ -1,0 +1,17 @@
+services:
+  bacli:
+    build: .
+    image: bacli:latest
+    container_name: bacli
+    # Mount all your config files into /etc/bacli
+    volumes:
+      - ./configs:/etc/bacli:ro
+    # Supply the sub-command and config path
+    command: ["backup", "-c", "/etc/bacli/config.yaml"]
+    environment:
+      VAULT_ADDR: "http://127.0.0.1:8200"
+      VAULT_TOKEN: "root"
+networks:
+  default:
+    external: true
+    name: bacli_net

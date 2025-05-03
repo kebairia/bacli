@@ -1,39 +1,41 @@
-# Stage 1: Build binary
-FROM golang:1.24-alpine AS builder
 
-# Install git (needed for Go modules sometimes)
+# ───────────────────────────── Stage 1: Build ─────────────────────────────
+FROM golang:1.24-alpine AS builder
+WORKDIR /build
+
+# Install git for module resolution
 RUN apk add --no-cache git
 
-# Set working dir
-WORKDIR /app
-
-# Copy only Go files needed to build
+# Copy only go.mod/go.sum to cache dependencies
 COPY go.mod go.sum ./
 RUN go mod download
 
-COPY cmd/ ./cmd/
-COPY internal/ ./internal/
+# Copy in just the code you need
+COPY cmd/    cmd/
+COPY internal/ internal/
+COPY main.go  .
 
-# Build the binary
-RUN go build -o bacli ./cmd/bacli
+# Build a static binary
+RUN CGO_ENABLED=0 GOOS=linux go build -o bacli .
 
-# -------------------------------
 
-# Stage 2: Create minimal runtime image
-FROM alpine:latest
 
-# Install needed database clients
-RUN apk add --no-cache postgresql-client mongodb-tools
+# ──────────────────────────── Stage 2: Runtime ────────────────────────────
+FROM alpine:3.18
 
-# (Optional) Create a dedicated user for security
-RUN adduser -D bacli
+# Install only what we need at runtime:
+#  • ca-certificates    (for Vault/TLS)
+#  • postgresql-client  (pg_dump, psql, pg_restore, etc.)
+#  • mongodb-tools      (mongodump, mongorestore, etc.)
+RUN apk add --no-cache \
+      ca-certificates \
+      postgresql-client \
+      mongodb-tools
 
-# Working directory inside container
-WORKDIR /home/bacli
+# Copy the compiled binary in
+COPY --from=builder /build/bacli /usr/local/bin/bacli
 
-# Copy built binary only
-COPY --from=builder /app/bacli /usr/local/bin/bacli
-
-USER bacli
-
+# Entrypoint is just our bacli CLI; 
+# override CMD in docker-compose or at runtime as needed
 ENTRYPOINT ["bacli"]
+# CMD ["serve", "--listen-addr", ":8080"]
