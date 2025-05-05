@@ -15,3 +15,4 @@ notes.md
 /creds.tf
 /configs/prod-config.yaml
 /commands.sh
+/utils/

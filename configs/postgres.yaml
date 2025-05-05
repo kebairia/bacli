@@ -6,6 +6,7 @@
 # -----------------------------------------------------------------------------
 postgres:
   vault_base_path: "secret/data/postgres"
+  # vault_role_path: "secret/data/postgres"
   instances:
     - name: "db1"
     - name: "db2"
