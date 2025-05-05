@@ -26,6 +26,7 @@ type DBGroup struct {
 	Method string `yaml:"method,omitempty"`
 	// Prefix under the Vault KV engine, e.g. "secret/data/backups/postgres".
 	VaultBasePath string `yaml:"vault_base_path"`
+	VaultRolePath string `yaml:"vault_role_path"`
 	// List of concrete database instances.
 	Instances []DBInstance `yaml:"instances"`
 }

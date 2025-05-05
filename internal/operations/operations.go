@@ -26,20 +26,26 @@ func InitializeMongoDBInstance(configPath string) ([]backup.Database, error) {
 	var dbs []backup.Database
 	for _, instance := range config.Mongo.Instances {
 		path := fmt.Sprintf("%s/%s", config.Mongo.VaultBasePath, instance.Name)
-		secret, err := vaultClient.ReadSecret(path)
+		role := fmt.Sprintf("pg-%s-backup", instance.Name) // db.Name == "pg-db1", "mongo-db2", …
+		connection, err := vaultClient.FullDBConnection(path, role)
 		if err != nil {
 			return nil, fmt.Errorf("vault read %q: %w", path, err)
 		}
+		fmt.Println("connection", connection)
 		opts := []backup.MongoDBOption{
-			backup.WithMongoCredentials(secret.Username, secret.Password),
-			backup.WithMongoDatabase(secret.Database),
-			backup.WithMongoHost(secret.Host),
-			backup.WithMongoPort(secret.Port),
+			backup.WithMongoCredentials(connection.Username, connection.Password),
+			backup.WithMongoDatabase(connection.Database),
+			backup.WithMongoHost(connection.Host),
+			backup.WithMongoPort(connection.Port),
 			backup.WithMongoMethod(instance.Method),
 		}
 		mg, err := backup.NewMongoDB(config, opts...)
 		if err != nil {
-			return nil, fmt.Errorf("failed creating MongoDB instance %q: %w", secret.Database, err)
+			return nil, fmt.Errorf(
+				"failed creating MongoDB instance %q: %w",
+				connection.Database,
+				err,
+			)
 		}
 		dbs = append(dbs, mg)
 	}
@@ -60,20 +66,26 @@ func InitializePostgresInstance(configPath string) ([]backup.Database, error) {
 	var dbs []backup.Database
 	for _, instance := range config.Postgres.Instances {
 		path := fmt.Sprintf("%s/%s", config.Postgres.VaultBasePath, instance.Name)
-		secret, err := vaultClient.ReadSecret(path)
+		role := fmt.Sprintf("pg-%s-backup", instance.Name) // db.Name == "pg-db1", "mongo-db2", …
+		connection, err := vaultClient.FullDBConnection(path, role)
 		if err != nil {
 			return nil, fmt.Errorf("vault read %q: %w", path, err)
 		}
+		fmt.Println("connection", connection)
 		opts := []backup.PostgresOption{
-			backup.WithPostgresCredentials(secret.Username, secret.Password),
-			backup.WithPostgresDatabase(secret.Database),
-			backup.WithPostgresHost(secret.Host),
-			backup.WithPostgresPort(secret.Port),
+			backup.WithPostgresCredentials(connection.Username, connection.Password),
+			backup.WithPostgresDatabase(connection.Database),
+			backup.WithPostgresHost(connection.Host),
+			backup.WithPostgresPort(connection.Port),
 			backup.WithPostgresMethod(instance.Method),
 		}
 		pg, err := backup.NewPostgres(config, opts...)
 		if err != nil {
-			return nil, fmt.Errorf("failed creating Postgres instance %q: %w", secret.Database, err)
+			return nil, fmt.Errorf(
+				"failed creating Postgres instance %q: %w",
+				connection.Database,
+				err,
+			)
 		}
 		dbs = append(dbs, pg)
 	}
