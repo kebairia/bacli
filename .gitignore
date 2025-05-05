@@ -10,3 +10,8 @@ notes.md
 /terraform.tfstate
 /terraform.tfstate.backup
 /configs/config-vault.yaml
+/tls/
+/vault/
+/creds.tf
+/configs/prod-config.yaml
+/commands.sh
