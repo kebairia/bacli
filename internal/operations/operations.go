@@ -26,12 +26,11 @@ func InitializeMongoDBInstance(configPath string) ([]backup.Database, error) {
 	var dbs []backup.Database
 	for _, instance := range config.Mongo.Instances {
 		path := fmt.Sprintf("%s/%s", config.Mongo.VaultBasePath, instance.Name)
-		role := fmt.Sprintf("pg-%s-backup", instance.Name) // db.Name == "pg-db1", "mongo-db2", …
+		role := fmt.Sprintf("mongo-%s-backup", instance.Name) // db.Name == "pg-db1", "mongo-db2", …
 		connection, err := vaultClient.FullDBConnection(path, role)
 		if err != nil {
 			return nil, fmt.Errorf("vault read %q: %w", path, err)
 		}
-		fmt.Println("connection", connection)
 		opts := []backup.MongoDBOption{
 			backup.WithMongoCredentials(connection.Username, connection.Password),
 			backup.WithMongoDatabase(connection.Database),
@@ -71,7 +70,6 @@ func InitializePostgresInstance(configPath string) ([]backup.Database, error) {
 		if err != nil {
 			return nil, fmt.Errorf("vault read %q: %w", path, err)
 		}
-		fmt.Println("connection", connection)
 		opts := []backup.PostgresOption{
 			backup.WithPostgresCredentials(connection.Username, connection.Password),
 			backup.WithPostgresDatabase(connection.Database),
