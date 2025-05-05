@@ -13,10 +13,7 @@ import (
 	"github.com/kebairia/backup/internal/vault"
 )
 
-// InitializeDatabases loads, parses, and validates the YAML config at configPath.
-// It constructs and returns a slice of Database instances (Postgres + MongoDB).
-func InitializeDatabases(configPath string) ([]backup.Database, error) {
-	// Parse configuration file into config
+func InitializeMongoDBInstance(configPath string) ([]backup.Database, error) {
 	var config config.Config
 	if err := config.Load(configPath); err != nil {
 		return nil, fmt.Errorf("could not parse config %q: %w", configPath, err)
@@ -26,46 +23,8 @@ func InitializeDatabases(configPath string) ([]backup.Database, error) {
 	if err != nil {
 		return nil, fmt.Errorf("vault client init: %w", err)
 	}
-
-	// Retrieve the global logger (must be initialized already)
-	log := logger.Global()
-
-	// Prepare slice to hold database instances
 	var dbs []backup.Database
-
-	// --- Postgres instances ---
-	for _, instance := range config.Postgres.Instances {
-		path := fmt.Sprintf("%s/%s", config.Postgres.VaultBasePath, instance.Name)
-		secret, err := vaultClient.ReadSecret(path)
-		if err != nil {
-			return nil, fmt.Errorf("vault read %q: %w", path, err)
-		}
-		// Extract fields
-		// Build functional options from config
-		opts := []backup.PostgresOption{
-			backup.WithPostgresCredentials(secret.Username, secret.Password),
-			backup.WithPostgresDatabase(secret.Database),
-			backup.WithPostgresHost(secret.Host),
-			backup.WithPostgresPort(secret.Port),
-			backup.WithPostgresMethod(instance.Method),
-		}
-
-		// Create a Postgres backup handler
-		pg, err := backup.NewPostgres(config, opts...)
-		if err != nil {
-			return nil, fmt.Errorf("failed creating Postgres instance %q: %w", secret.Database, err)
-		}
-
-		// Inject the shared logger
-		pg.Logger = log
-
-		// Add to the list of databases to back up
-		dbs = append(dbs, pg)
-	}
-
-	// --- MongoDB instances ---
 	for _, instance := range config.Mongo.Instances {
-
 		path := fmt.Sprintf("%s/%s", config.Mongo.VaultBasePath, instance.Name)
 		secret, err := vaultClient.ReadSecret(path)
 		if err != nil {
@@ -82,9 +41,60 @@ func InitializeDatabases(configPath string) ([]backup.Database, error) {
 		if err != nil {
 			return nil, fmt.Errorf("failed creating MongoDB instance %q: %w", secret.Database, err)
 		}
-		mg.Logger = log
 		dbs = append(dbs, mg)
 	}
+	return dbs, nil
+}
+
+// InitializePostgresInstance loads, parses, and validates the YAML config at configPath.
+func InitializePostgresInstance(configPath string) ([]backup.Database, error) {
+	var config config.Config
+	if err := config.Load(configPath); err != nil {
+		return nil, fmt.Errorf("could not parse config %q: %w", configPath, err)
+	}
+	// Init Vault client
+	vaultClient, err := vault.NewClient(config.Vault.Address, config.Vault.Token)
+	if err != nil {
+		return nil, fmt.Errorf("vault client init: %w", err)
+	}
+	var dbs []backup.Database
+	for _, instance := range config.Postgres.Instances {
+		path := fmt.Sprintf("%s/%s", config.Postgres.VaultBasePath, instance.Name)
+		secret, err := vaultClient.ReadSecret(path)
+		if err != nil {
+			return nil, fmt.Errorf("vault read %q: %w", path, err)
+		}
+		opts := []backup.PostgresOption{
+			backup.WithPostgresCredentials(secret.Username, secret.Password),
+			backup.WithPostgresDatabase(secret.Database),
+			backup.WithPostgresHost(secret.Host),
+			backup.WithPostgresPort(secret.Port),
+			backup.WithPostgresMethod(instance.Method),
+		}
+		pg, err := backup.NewPostgres(config, opts...)
+		if err != nil {
+			return nil, fmt.Errorf("failed creating Postgres instance %q: %w", secret.Database, err)
+		}
+		dbs = append(dbs, pg)
+	}
+	return dbs, nil
+}
+
+// InitializeDatabases loads, parses, and validates the YAML config at configPath.
+// It constructs and returns a slice of Database instances (Postgres + MongoDB).
+func InitializeDatabases(configPath string) ([]backup.Database, error) {
+	pg_dbs, err := InitializePostgresInstance(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("initialize postgres instance: %w", err)
+	}
+	mg_dbs, err := InitializeMongoDBInstance(configPath)
+	if err != nil {
+		return nil, fmt.Errorf("initialize mongodb instance: %w", err)
+	}
+
+	dbs := make([]backup.Database, 0, len(pg_dbs)+len(mg_dbs))
+	dbs = append(dbs, pg_dbs...)
+	dbs = append(dbs, mg_dbs...)
 
 	return dbs, nil
 }
