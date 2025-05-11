@@ -1,23 +1,22 @@
 # -----------------------------------------------------------------------------
-# Description: PostgreSQL backup configuration
+# Description: MySQL backup configuration
 # -----------------------------------------------------------------------------
-postgres:
+mysql:
   host: "localhost"
-  port: "5432"
+  port: 3306
   timeout: 30m
   compress: true
-  method: "tar" # pg_dump formats: plain|custom|directory|tar
+  method: "dump" # mysqldump mode ("dump", "raw", ...)
   vault:
-    kv_base: "secret/data/postgres"
+    kv_base: "secret/data/mysql"
     role_base: "database/creds"
   instances:
     - name: "db1"
       kv_path: "db1"
-      role_name: "pg-db1-backup"
-      method: "plain"
+      role_name: "mysql-db1-backup"
     - name: "db2"
       kv_path: "db2"
-      role_name: "pg-db2-backup"
+      role_name: "mysql-db2-backup"
     - name: "db3"
       kv_path: "db3"
-      role_name: "pg-db3-backup"
+      role_name: "mysql-db3-backup"

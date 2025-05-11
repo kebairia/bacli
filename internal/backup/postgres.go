@@ -38,10 +38,10 @@ func NewPostgres(cfg config.Config, opts ...PostgresOption) (*Postgres, error) {
 		return nil, fmt.Errorf("logger init failed: %w", err)
 	}
 	p := &Postgres{
-		Host:            cfg.Defaults.Postgres.Host,
-		Port:            cfg.Defaults.Postgres.Port,
-		Method:          cfg.Defaults.Postgres.Method,
-		OutputDir:       cfg.Backup.OutputDir,
+		Host:            cfg.Postgres.EngineDefaults.Host,
+		Port:            cfg.Postgres.EngineDefaults.Port,
+		Method:          cfg.Postgres.EngineDefaults.Method,
+		OutputDir:       cfg.Backup.OutputDirectory,
 		TimeStampFormat: cfg.Backup.TimestampFormat,
 		Timeout:         cfg.Backup.Timeout,
 		Logger:          log,

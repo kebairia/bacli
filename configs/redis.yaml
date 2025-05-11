@@ -1,0 +1,23 @@
+# -----------------------------------------------------------------------------
+# Description: Redis backup configuration
+# -----------------------------------------------------------------------------
+redis:
+  host: "localhost"
+  port: 6379
+  timeout: 30m
+  compress: true
+  # Redis snapshot format: rdb or aof
+  method: "rdb"
+  vault:
+    kv_base: "secret/data/redis"
+    role_base: "database/creds"
+  instances:
+    - name: "cache1"
+      kv_path: "cache1"
+      role_name: "redis-cache1-backup"
+    - name: "cache2"
+      kv_path: "cache2"
+      role_name: "redis-cache2-backup"
+    - name: "cache3"
+      kv_path: "cache3"
+      role_name: "redis-cache3-backup"

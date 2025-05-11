@@ -1,12 +1,22 @@
 # -----------------------------------------------------------------------------
-# Author:      Zakaria Kebairia
-# Date:        2025-05-02
-# Version:     1.4
-# Description: MongoDB instances for backup (credentials in Vault).
+# Description: MongoDB backup configuration
 # -----------------------------------------------------------------------------
 mongodb:
-  vault_base_path: "secret/data/mongodb"
+  host: "localhost"
+  port: 27017
+  timeout: 30m
+  compress: true
+  method: "archive" # mongodump modes: "archive" or directory
+  vault:
+    kv_base: "secret/data/mongodb"
+    role_base: "database/creds"
   instances:
     - name: "db1"
+      kv_path: "db1"
+      role_name: "mongo-db1-backup"
     - name: "db2"
+      kv_path: "db2"
+      role_name: "mongo-db2-backup"
     - name: "db3"
+      kv_path: "db3"
+      role_name: "mongo-db3-backup"

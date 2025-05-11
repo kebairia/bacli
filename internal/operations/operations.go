@@ -13,23 +13,43 @@ import (
 	"github.com/kebairia/backup/internal/vault"
 )
 
-func InitializeMongoDBInstance(configPath string) ([]backup.Database, error) {
+// OperationManager is a struct that manages the backup and restore operations.
+type OperationManager struct {
+	cfg         config.Config
+	vaultClient *vault.Client
+	log         logger.Logger
+}
+
+// NewOperationManager loads, parses, and validates the YAML config at configPath.
+func NewOperationManager(configPath string) (*OperationManager, error) {
 	var config config.Config
 	if err := config.Load(configPath); err != nil {
-		return nil, fmt.Errorf("could not parse config %q: %w", configPath, err)
+		return nil, err
 	}
 	// Init Vault client
 	vaultClient, err := vault.NewClient(config.Vault.Address, config.Vault.Token)
 	if err != nil {
 		return nil, fmt.Errorf("vault client init: %w", err)
 	}
+
+	log := logger.Global()
+
+	return &OperationManager{
+		cfg:         config,
+		vaultClient: vaultClient,
+		log:         log,
+	}, nil
+}
+
+// InitializeMongoDBInstance loads, parses, and validates the YAML config at configPath.
+func (om *OperationManager) InitializeMongoDBInstance() ([]backup.Database, error) {
 	var dbs []backup.Database
-	for _, instance := range config.Mongo.Instances {
-		path := fmt.Sprintf("%s/%s", config.Mongo.VaultBasePath, instance.Name)
-		role := fmt.Sprintf("mongo-%s-backup", instance.Name) // db.Name == "pg-db1", "mongo-db2", …
-		connection, err := vaultClient.FullDBConnection(path, role)
+	for _, instance := range om.cfg.MongoDB.Instances {
+		secretPath := filepath.Join(om.cfg.MongoDB.Vault.KVBase, instance.KVPath)
+		rolePath := filepath.Join(om.cfg.MongoDB.Vault.RoleBase, instance.RoleName)
+		connection, err := om.vaultClient.FullDBConnection(secretPath, rolePath)
 		if err != nil {
-			return nil, fmt.Errorf("vault read %q: %w", path, err)
+			return nil, fmt.Errorf("vault read : %w", err)
 		}
 		opts := []backup.MongoDBOption{
 			backup.WithMongoCredentials(connection.Username, connection.Password),
@@ -52,23 +72,14 @@ func InitializeMongoDBInstance(configPath string) ([]backup.Database, error) {
 }
 
 // InitializePostgresInstance loads, parses, and validates the YAML config at configPath.
-func InitializePostgresInstance(configPath string) ([]backup.Database, error) {
-	var config config.Config
-	if err := config.Load(configPath); err != nil {
-		return nil, fmt.Errorf("could not parse config %q: %w", configPath, err)
-	}
-	// Init Vault client
-	vaultClient, err := vault.NewClient(config.Vault.Address, config.Vault.Token)
-	if err != nil {
-		return nil, fmt.Errorf("vault client init: %w", err)
-	}
+func (om *OperationManager) InitializePostgresInstance() ([]backup.Database, error) {
 	var dbs []backup.Database
-	for _, instance := range config.Postgres.Instances {
-		path := fmt.Sprintf("%s/%s", config.Postgres.VaultBasePath, instance.Name)
-		role := fmt.Sprintf("pg-%s-backup", instance.Name) // db.Name == "pg-db1", "mongo-db2", …
-		connection, err := vaultClient.FullDBConnection(path, role)
+	for _, instance := range om.cfg.Postgres.Instances {
+		secretPath := filepath.Join(om.cfg.Postgres.Vault.KVBase, instance.KVPath)
+		rolePath := filepath.Join(om.cfg.Postgres.Vault.RoleBase, instance.RoleName)
+		connection, err := om.vaultClient.FullDBConnection(secretPath, rolePath)
 		if err != nil {
-			return nil, fmt.Errorf("vault read %q: %w", path, err)
+			return nil, fmt.Errorf("vault read :%w", err)
 		}
 		opts := []backup.PostgresOption{
 			backup.WithPostgresCredentials(connection.Username, connection.Password),

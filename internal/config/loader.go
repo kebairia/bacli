@@ -1,133 +1,120 @@
 package config
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
 	"os"
 	"time"
 
-	"gopkg.in/yaml.v3"
+	"github.com/spf13/viper"
 )
+
+// ErrLoadConfig indicates a failure to read or parse the YAML configuration.
+var ErrLoadConfig = errors.New("config load failed")
+
+// ErrValidateConfig indicates that the loaded configuration is invalid.
+var ErrValidateConfig = errors.New("configuration validation failed")
+
+// Config represents the top-level YAML configuration file.
+type Config struct {
+	Include   []string        `mapstructure:"include"   yaml:"include,omitempty"`
+	Backup    BackupConfig    `mapstructure:"backup"    yaml:"backup"`
+	Vault     VaultConfig     `mapstructure:"vault"     yaml:"vault"`
+	Metadata  MetadataConfig  `mapstructure:"metadata"  yaml:"metadata"`
+	Retention RetentionConfig `mapstructure:"retention" yaml:"retention"`
+
+	// Per-engine groups
+	Postgres DBGroupConfig `mapstructure:"postgres" yaml:"postgres"`
+	MongoDB  DBGroupConfig `mapstructure:"mongodb"  yaml:"mongodb"`
+	Redis    DBGroupConfig `mapstructure:"redis"    yaml:"redis"`
+}
 
 // VaultConfig holds connection settings for HashiCorp Vault.
 type VaultConfig struct {
-	Address string `yaml:"address"`
-	Token   string `yaml:"token,omitempty"`
+	Address string `mapstructure:"address" yaml:"address"`
+	Token   string `mapstructure:"token"   yaml:"token,omitempty"`
 }
 
-// DBInstance represents a single database instance.
-type DBInstance struct {
-	Name   string `yaml:"name"`
-	Method string `yaml:"method,omitempty"`
-}
-
-// DBGroup groups related database instances under the same Vault KV path.
-type DBGroup struct {
-	// Default dump/restore method for instances in this group (e.g. custom, plain).
-	Method string `yaml:"method,omitempty"`
-	// Prefix under the Vault KV engine, e.g. "secret/data/backups/postgres".
-	VaultBasePath string `yaml:"vault_base_path"`
-	VaultRolePath string `yaml:"vault_role_path"`
-	// List of concrete database instances.
-	Instances []DBInstance `yaml:"instances"`
-}
-
-// BackupConfig contains global backup parameters.
+// BackupConfig contains global backup options.
 type BackupConfig struct {
-	OutputDir       string        `yaml:"output_dir"`
-	Compress        bool          `yaml:"compress"`
-	TimestampFormat string        `yaml:"timestamp_format"`
-	Timeout         time.Duration `yaml:"timeout"`
+	OutputDirectory string        `mapstructure:"output_directory" yaml:"output_directory"`
+	Compress        bool          `mapstructure:"compress"         yaml:"compress"`
+	TimestampFormat string        `mapstructure:"timestamp_format" yaml:"timestamp_format"`
+	Timeout         time.Duration `mapstructure:"timeout"          yaml:"timeout"`
 }
 
-// MetadataConfig points to the metadata.json location.
+// MetadataConfig points to the metadata JSON file location.
 type MetadataConfig struct {
-	Path string `yaml:"path"`
+	Path string `mapstructure:"path" yaml:"path"`
 }
 
-// DefaultConfig provides per‑engine fallback values.
-type DefaultConfig struct {
-	Postgres struct {
-		Host   string `yaml:"host,omitempty"`
-		Port   string `yaml:"port,omitempty"`
-		Method string `yaml:"method,omitempty"`
-	} `yaml:"postgres"`
-	Mongo struct {
-		Host   string `yaml:"host,omitempty"`
-		Port   string `yaml:"port,omitempty"`
-		Method string `yaml:"method,omitempty"`
-	} `yaml:"mongodb"`
+// RetentionConfig specifies how many backups to keep and cleanup interval.
+type RetentionConfig struct {
+	KeepLast        int           `mapstructure:"keep_last"        yaml:"keep_last"`
+	CleanupInterval time.Duration `mapstructure:"cleanup_interval" yaml:"cleanup_interval"`
 }
 
-// Config is the top‑level structure representing the entire YAML file.
-type Config struct {
-	Include  []string       `yaml:"include"`
-	Vault    VaultConfig    `yaml:"vault"`
-	Backup   BackupConfig   `yaml:"backup"`
-	Metadata MetadataConfig `yaml:"metadata"`
-	Defaults DefaultConfig  `yaml:"defaults"`
-
-	Postgres DBGroup `yaml:"postgres"`
-	Mongo    DBGroup `yaml:"mongodb"`
+// EngineDefaults provides common settings for a DB engine.
+type EngineDefaults struct {
+	Host     string        `mapstructure:"host"     yaml:"host,omitempty"`
+	Port     string        `mapstructure:"port"     yaml:"port,omitempty"`
+	Timeout  time.Duration `mapstructure:"timeout"  yaml:"timeout,omitempty"`
+	Compress bool          `mapstructure:"compress" yaml:"compress,omitempty"`
+	Method   string        `mapstructure:"method"   yaml:"method,omitempty"`
 }
 
-// Load reads the main YAML file and any referenced include files, merging the
-// result into *Config.
-func (config *Config) Load(filename string) error {
-	// Load the main configuration file
-	if err := config.parseFile(filename); err != nil {
-		return fmt.Errorf("failed to load main config file: %w", err)
+// DBGroupConfig groups common engine settings and Vault prefixes.
+type DBGroupConfig struct {
+	EngineDefaults `mapstructure:",squash" yaml:",inline"` // inline and squash host, port, timeout, compress, method
+
+	Vault     VaultPaths   `mapstructure:"vault"     yaml:"vault"`
+	Instances []DBInstance `mapstructure:"instances" yaml:"instances"`
+}
+
+// VaultPaths holds the KV and role prefixes under the Vault mount.
+type VaultPaths struct {
+	KVBase   string `mapstructure:"kv_base"   yaml:"kv_base"`
+	RoleBase string `mapstructure:"role_base" yaml:"role_base"`
+}
+
+// DBInstance represents a single database within a group.
+type DBInstance struct {
+	Name     string `mapstructure:"name"      yaml:"name"`
+	KVPath   string `mapstructure:"kv_path"   yaml:"kv_path,omitempty"`
+	RoleName string `mapstructure:"role_name" yaml:"role_name,omitempty"`
+	Method   string `mapstructure:"method"    yaml:"method,omitempty"`
+}
+
+// Load reads the configuration from the given YAML file using Viper,
+// merges any included files, and unmarshals into the Config struct.
+func (c *Config) Load(path string) error {
+	v := viper.New()
+	v.SetConfigFile(path)
+	v.SetConfigType("yaml")
+	v.SetConfigType("yml")
+	v.AutomaticEnv()
+
+	// Read base configuration
+	if err := v.ReadInConfig(); err != nil {
+		return fmt.Errorf("%w: read base config %s: %v", ErrLoadConfig, path, err)
 	}
 
-	// Load included instance files, if any
-	for _, file := range config.Include {
-		if err := config.includeFile(file); err != nil {
-			return fmt.Errorf("failed to load included file %q: %w", file, err)
+	// Merge include files (if any)
+	for _, inc := range v.GetStringSlice("include") {
+		data, err := os.ReadFile(inc)
+		if err != nil {
+			return fmt.Errorf("%w: read include %s: %v", ErrLoadConfig, inc, err)
+		}
+		if err := v.MergeConfig(bytes.NewReader(data)); err != nil {
+			return fmt.Errorf("%w: merge include %s: %v", ErrLoadConfig, inc, err)
 		}
 	}
 
-	return nil
-}
-
-// includedFile loads postgres.yaml, mongodb.yaml, etc., and appends instances to the config.
-func (config *Config) includeFile(path string) error {
-	// 1. Load the main configuration file
-	if err := config.parseFile(path); err != nil {
-		return fmt.Errorf("failed to parse config file %q: %w", path, err)
+	// Unmarshal into the Config struct
+	if err := v.UnmarshalExact(c); err != nil {
+		return fmt.Errorf("%w: unmarshal config: %v", ErrLoadConfig, err)
 	}
 
-	// Temporary holder to detect which block is present
-	var include struct {
-		Postgres *DBGroup `yaml:"postgres"`
-		Mongo    *DBGroup `yaml:"mongodb"`
-	}
-
-	// Merge Postgres group: override base path if provided and append instances
-	if include.Postgres != nil {
-		if include.Postgres.VaultBasePath != "" {
-			config.Postgres.VaultBasePath = include.Postgres.VaultBasePath
-		}
-		config.Postgres.Instances = append(config.Postgres.Instances, include.Postgres.Instances...)
-	}
-	// Merge MongoDB group
-	if include.Mongo != nil {
-		if include.Mongo.VaultBasePath != "" {
-			config.Mongo.VaultBasePath = include.Mongo.VaultBasePath
-		}
-		config.Mongo.Instances = append(config.Mongo.Instances, include.Mongo.Instances...)
-	}
-
-	return nil
-}
-
-// parseFile reads a YAML file from disk and unmarshals it into dst.
-func (config *Config) parseFile(path string) error {
-	// Loadaa the file
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return fmt.Errorf("failed to read config file %q: %w", path, err)
-	}
-	if err := yaml.Unmarshal(data, config); err != nil {
-		return fmt.Errorf("failed to unmarshal config file %q: %w", path, err)
-	}
 	return nil
 }

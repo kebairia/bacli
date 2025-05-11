@@ -46,10 +46,10 @@ func NewMongoDB(cfg config.Config, opts ...MongoDBOption) (*MongoDB, error) {
 
 	m := &MongoDB{
 		// Username:        cfg.Defaults.MongoDB.Username,
-		Host:            cfg.Defaults.Mongo.Host,
-		Port:            cfg.Defaults.Mongo.Port,
-		Method:          cfg.Defaults.Mongo.Method,
-		OutputDir:       cfg.Backup.OutputDir,
+		Host:            cfg.MongoDB.EngineDefaults.Host,
+		Port:            cfg.MongoDB.EngineDefaults.Port,
+		Method:          cfg.MongoDB.EngineDefaults.Method,
+		OutputDir:       cfg.Backup.OutputDirectory,
 		TimestampFormat: cfg.Backup.TimestampFormat,
 		Timeout:         cfg.Backup.Timeout,
 		Logger:          log,
@@ -130,7 +130,7 @@ func WithMongoTimestampFormat(format string) MongoDBOption {
 // Backup creates a backup of the MongoDB database using mongodump.
 func (m *MongoDB) Backup() (backupPath string, err error) {
 	log := m.Logger
-	ctx, cancel := context.WithTimeout(context.Background(), m.Timeout)
+	ctx, cancel := context.WithTimeoutCause(context.Background(), m.Timeout, ErrTimeout)
 	defer cancel()
 
 	timestamp := time.Now().Format(m.TimestampFormat)
