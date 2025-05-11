@@ -1,4 +1,4 @@
-// Package vaultutil provides a small wrapper around the official
+// Package vault provides a small wrapper around the official
 // HashiCorp Vault Go SDK focused on the two operations bacli needs:
 //  1. Read static connection metadata from a KV mount (host, port, db name).
 //  2. Fetch short‑livedDynamic credentials from the database secrets engine.
@@ -8,6 +8,7 @@
 package vault
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"time"
@@ -15,6 +16,9 @@ import (
 	vault "github.com/hashicorp/vault/api"
 	"github.com/mitchellh/mapstructure"
 )
+
+// ErrClientInit indicates failure to initialize the Vault API client.
+var ErrClientInit = errors.New("vault client initialization failed")
 
 // Client is a thin wrapper that embeds the official Vault API client.
 // All higher‑level helper methods hang off this type.
@@ -38,7 +42,7 @@ func NewClient(addr, token string) (*Client, error) {
 
 	api, err := vault.NewClient(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("create API client: %w", err)
+		return nil, errors.Join(ErrClientInit, err)
 	}
 
 	// Resolve token.
@@ -94,7 +98,7 @@ type DBConnection struct {
 func (c *Client) ReadConnMeta(path string) (ConnMeta, error) {
 	sec, err := c.Logical().Read(path)
 	if err != nil {
-		return ConnMeta{}, fmt.Errorf("vault read %q: %w", path, err)
+		return ConnMeta{}, fmt.Errorf("vault failed to read %q: %w", path, err)
 	}
 	if sec == nil || sec.Data == nil {
 		return ConnMeta{}, fmt.Errorf("no data at %q", path)
@@ -116,7 +120,7 @@ func (c *Client) ReadConnMeta(path string) (ConnMeta, error) {
 // FetchDynCreds hits database/creds/<role> and returns the username/password
 // and TTL in a structured value.
 func (c *Client) FetchDynCreds(role string) (DynCreds, error) {
-	sec, err := c.Logical().Read("database/creds/" + role)
+	sec, err := c.Logical().Read(role)
 	if err != nil {
 		return DynCreds{}, fmt.Errorf("read creds %q: %w", role, err)
 	}
