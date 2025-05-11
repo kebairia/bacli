@@ -213,7 +213,7 @@ func (m *MongoDB) Backup() (backupPath string, err error) {
 // Restore restores a MongoDB database from a backup directory using mongorestore.
 func (m *MongoDB) Restore(sourceDir string) error {
 	log := m.Logger
-	ctx, cancel := context.WithTimeout(context.Background(), m.Timeout)
+	ctx, cancel := context.WithTimeoutCause(context.Background(), m.Timeout, ErrTimeout)
 	defer cancel()
 
 	if _, err := os.Stat(sourceDir); err != nil {
@@ -274,7 +274,7 @@ func (m *MongoDB) Restore(sourceDir string) error {
 
 	log.Info("restore completed",
 		"database", m.Database,
-		"engine", "postgres",
+		"engine", "mongodb",
 		"source", sourceDir,
 		"duration", executionDuration.String(),
 	)

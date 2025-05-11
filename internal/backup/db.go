@@ -1,5 +1,9 @@
 package backup
 
+import "errors"
+
+var ErrTimeout = errors.New("operation timed out")
+
 type Database interface {
 	GetName() string
 	GetEngine() string

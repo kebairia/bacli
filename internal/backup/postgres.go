@@ -121,7 +121,8 @@ func WithPostgresTimestampFormat(timeStampFormat string) PostgresOption {
 // Backup runs `pg_dump` to back up the database into a timestamped .dump file.
 func (p *Postgres) Backup() (backupPath string, err error) {
 	log := p.Logger
-	ctx, cancel := context.WithTimeout(context.Background(), p.Timeout)
+	ctx, cancel := context.WithTimeoutCause(context.Background(), p.Timeout, ErrTimeout)
+
 	defer cancel()
 	// e.g. "./backups/postgres/2025-04-24_21-00-00-mydb.dump"
 	timestamp := time.Now().Format(p.TimeStampFormat)
