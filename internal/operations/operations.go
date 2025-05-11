@@ -111,28 +111,35 @@ func InitializeDatabases(configPath string) ([]backup.Database, error) {
 
 // BackupDatabase runs a single backup against one Database.
 // It returns an error if that backup fails.
-func BackupDatabase(db backup.Database) (backup.DBRecord, error) {
+func (om *OperationManager) BackupDatabases(
+	db backup.Database,
+) error {
 	start := time.Now()
-	record := backup.DBRecord{
-		Name:      db.GetName(),
+	record := backup.Metadata{
+		Database:  db.GetName(),
+		Engine:    db.GetEngine(),
 		StartedAt: start,
 	}
 	backupPath, err := db.Backup()
 	duration := time.Since(start)
+	record.CompletedAt = time.Now()
 	record.Duration = duration
 	if err != nil {
-		record.Success = false
+		record.Status = "failed"
 		record.Error = err.Error()
-		record.Path = "None"
-		return record, fmt.Errorf("backup failed for %q: %w", db.GetName(), err)
+		record.FilePath = "None"
+		return fmt.Errorf("backup failed for %q: %w", db.GetName(), err)
 	}
-	record.Success = true
-	record.Path = backupPath
+	record.Status = "success"
+	record.FilePath = backupPath
 	if info, err := os.Stat(backupPath); err == nil {
 		record.SizeBytes = info.Size()
 	}
 
-	return record, nil
+	// Write metadata to file
+	record.Write(filepath.Dir(backupPath))
+
+	return nil
 }
 
 // RestoreDatabase runs a single restore against one Database.
@@ -147,27 +154,23 @@ func RestoreDatabase(db backup.Database, record backup.DBRecord) error {
 // BackupAll runs backups for all configured databases in parallel.
 func BackupAll(configPath string) error {
 	log := logger.Global()
-	databases, err := InitializeDatabases(configPath)
+	om, err := NewOperationManager(configPath)
+	if err != nil {
+		return err
+	}
+	// 1) Initialize DB instances
+	databases, err := om.InitializeDatabases()
 	if err != nil {
 		return fmt.Errorf("initialize databases: %w", err)
 	}
-	// postgres: [Metadata for postgres dumpfiles]
-	backupMetas := map[string]*backup.Metadata{}
 
 	var (
-		mu   sync.Mutex
 		wg   sync.WaitGroup
 		errs = make(chan error, len(databases)) // buffered to avoid deadlock
 	)
 
 	for _, db := range databases {
 
-		path := db.GetPath()
-		backupMetas[path] = &backup.Metadata{
-			RunAt:   time.Now(),
-			Backups: make([]backup.DBRecord, 0, len(databases)),
-			Engine:  db.GetEngine(),
-		}
 		// increament my waiting list by one since I'm doing a new backup
 		wg.Add(1)
 		// start of the goroutine
@@ -230,9 +233,6 @@ func RestoreAll(configPath string) error {
 		return fmt.Errorf("load config %q: %w", configPath, err)
 	}
 
-	// 3) Find all metadata.json files
-	globPattern := filepath.Join(config.Backup.OutputDir, "*", "metadata.json")
-	metaPaths, err := filepath.Glob(globPattern)
 	if err != nil {
 		return fmt.Errorf("glob %q: %w", globPattern, err)
 	}
@@ -240,16 +240,7 @@ func RestoreAll(configPath string) error {
 		return fmt.Errorf("no metadata.json files found under %q", config.Backup.OutputDir)
 	}
 
-	var meta backup.Metadata
-	// 4) For each metadata.json…
-	for _, metaFile := range metaPaths {
-
-		meta.Load(metaFile)
-		// 5) …restore each successful record
-		for _, rec := range meta.Backups {
-			if !rec.Success {
-				continue
-			}
+	record := backup.Metadata{}
 
 			// Match the record’s Name to one of our instances
 			var dbInst backup.Database
@@ -267,6 +258,20 @@ func RestoreAll(configPath string) error {
 			if err := RestoreDatabase(dbInst, rec); err != nil {
 				return err
 			}
+		metadataFile := filepath.Join(
+			om.cfg.Backup.OutputDirectory,
+			db.GetEngine(),
+			db.GetName(),
+			"metadata.json",
+		)
+		record.Load(metadataFile)
+		err := om.RestoreDatabase(db, record)
+		// in case of error, add this error to the error channel
+		if err != nil {
+			log.Error("restore failed",
+				"database", db.GetName(),
+				"error", err.Error(),
+			)
 		}
 	}
 
