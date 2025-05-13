@@ -121,7 +121,7 @@ func (om *OperationManager) InitializeDatabases() ([]backup.Database, error) {
 
 // BackupDatabase runs a single backup against one Database.
 // It returns an error if that backup fails.
-func (om *OperationManager) BackupDatabases(
+func (om *OperationManager) BackupDatabase(
 	db backup.Database,
 ) error {
 	start := time.Now()
@@ -211,7 +211,7 @@ func BackupAll(configPath string) error {
 			// mark this goroutine  as DONE (finished) once this function finish(exit)
 			defer wg.Done()
 
-			err := om.BackupDatabases(db)
+			err := om.BackupDatabase(db)
 			// in case of error, add this error to the error channel
 			if err != nil {
 				log.Error("backup failed",
