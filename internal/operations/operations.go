@@ -146,16 +146,17 @@ func (om *OperationManager) BackupDatabases(
 		record.SizeBytes = info.Size()
 	}
 
-	// Write metadata to file
-	record.Write(filepath.Dir(backupPath))
 	// Compress the backup file if needed
 	if om.cfg.Backup.Compress {
-		compressedFilePath, err := CompressZstd(backupPath)
+		comPath, err := CompressZstd(backupPath)
 		if err != nil {
 			return fmt.Errorf("compress backup file: %w", err)
 		}
-		record.FilePath = compressedFilePath
+		record.FilePath = comPath
 	}
+
+	// Write metadata to file
+	record.Write(filepath.Dir(backupPath))
 
 	return nil
 }
@@ -167,6 +168,17 @@ func (om *OperationManager) BackupDatabases(
 // FIX: I should remove the RestoreDatabase() and the BackupDatabase() methods form
 // operation manager
 func (om *OperationManager) RestoreDatabase(db backup.Database, record backup.Metadata) error {
+	// decompress the file if the compress=true
+	if om.cfg.Backup.Compress {
+		decPath, err := DecompressZstd(record.FilePath)
+		if err != nil {
+			return err
+		}
+		record.FilePath = decPath
+
+		// Remove the decompressed files
+		defer backup.RemoveFile(record.FilePath)
+	}
 	if err := db.Restore(record.FilePath); err != nil {
 		return fmt.Errorf("restore failed: %w", err)
 	}
@@ -193,7 +205,6 @@ func BackupAll(configPath string) error {
 
 	for _, db := range databases {
 
-		// increament my waiting list by one since I'm doing a new backup
 		wg.Add(1)
 		// start of the goroutine
 		go func(db backup.Database) {
@@ -252,6 +263,7 @@ func RestoreAll(configPath string) error {
 				"metadata.json",
 			)
 			record.Load(metadataFile)
+
 			err := om.RestoreDatabase(db, record)
 			// in case of error, add this error to the error channel
 			if err != nil {
