@@ -4,6 +4,7 @@ go 1.24.1
 
 require (
 	github.com/hashicorp/vault/api v1.16.0
+	github.com/klauspost/compress v1.18.0
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.20.1

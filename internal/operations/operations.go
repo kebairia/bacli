@@ -148,6 +148,14 @@ func (om *OperationManager) BackupDatabases(
 
 	// Write metadata to file
 	record.Write(filepath.Dir(backupPath))
+	// Compress the backup file if needed
+	if om.cfg.Backup.Compress {
+		compressedFilePath, err := CompressZstd(backupPath)
+		if err != nil {
+			return fmt.Errorf("compress backup file: %w", err)
+		}
+		record.FilePath = compressedFilePath
+	}
 
 	return nil
 }
