@@ -11,3 +11,10 @@ func EnsureDirectoryExist(dirPath string) error {
 	}
 	return nil
 }
+
+func RemoveFile(path string) error {
+	if err := os.Remove(path); err != nil {
+		return fmt.Errorf("failed to remove file %q: %w", path, err)
+	}
+	return nil
+}
