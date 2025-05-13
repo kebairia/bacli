@@ -221,6 +221,7 @@ func RestoreAll(configPath string) error {
 	if err != nil {
 		return err
 	}
+
 	// 1) Initialize DB instances
 	databases, err := om.InitializeDatabases()
 	if err != nil {
@@ -228,26 +229,31 @@ func RestoreAll(configPath string) error {
 	}
 
 	record := backup.Metadata{}
+	var wg sync.WaitGroup
 
 	for _, db := range databases {
+		wg.Add(1)
 
-		// increament my waiting list by one since I'm doing a new backup
-		metadataFile := filepath.Join(
-			om.cfg.Backup.OutputDirectory,
-			db.GetEngine(),
-			db.GetName(),
-			"metadata.json",
-		)
-		record.Load(metadataFile)
-		err := om.RestoreDatabase(db, record)
-		// in case of error, add this error to the error channel
-		if err != nil {
-			log.Error("restore failed",
-				"database", db.GetName(),
-				"error", err.Error(),
+		go func(db backup.Database, record backup.Metadata) {
+			defer wg.Done()
+			// increament my waiting list by one since I'm doing a new backup
+			metadataFile := filepath.Join(
+				om.cfg.Backup.OutputDirectory,
+				db.GetEngine(),
+				db.GetName(),
+				"metadata.json",
 			)
-		}
+			record.Load(metadataFile)
+			err := om.RestoreDatabase(db, record)
+			// in case of error, add this error to the error channel
+			if err != nil {
+				log.Error("restore failed",
+					"database", db.GetName(),
+					"error", err.Error(),
+				)
+			}
+		}(db, record)
 	}
-
+	wg.Wait()
 	return nil
 }
