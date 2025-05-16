@@ -21,7 +21,6 @@ type Config struct {
 	Include   []string        `mapstructure:"include"   yaml:"include,omitempty"`
 	Backup    BackupConfig    `mapstructure:"backup"    yaml:"backup"`
 	Vault     VaultConfig     `mapstructure:"vault"     yaml:"vault"`
-	Metadata  MetadataConfig  `mapstructure:"metadata"  yaml:"metadata"`
 	Retention RetentionConfig `mapstructure:"retention" yaml:"retention"`
 
 	// Per-engine groups
@@ -32,8 +31,9 @@ type Config struct {
 
 // VaultConfig holds connection settings for HashiCorp Vault.
 type VaultConfig struct {
-	Address string `mapstructure:"address" yaml:"address"`
-	Token   string `mapstructure:"token"   yaml:"token,omitempty"`
+	Address  string `mapstructure:"address"   yaml:"address"`
+	RoleID   string `mapstructure:"role_id"   yaml:"role_id,omitempty"`
+	RoleName string `mapstructure:"role_name" yaml:"role_name,omitempty"`
 }
 
 // BackupConfig contains global backup options.
@@ -42,11 +42,6 @@ type BackupConfig struct {
 	Compress        bool          `mapstructure:"compress"         yaml:"compress"`
 	TimestampFormat string        `mapstructure:"timestamp_format" yaml:"timestamp_format"`
 	Timeout         time.Duration `mapstructure:"timeout"          yaml:"timeout"`
-}
-
-// MetadataConfig points to the metadata JSON file location.
-type MetadataConfig struct {
-	Path string `mapstructure:"path" yaml:"path"`
 }
 
 // RetentionConfig specifies how many backups to keep and cleanup interval.
@@ -81,7 +76,9 @@ type VaultPaths struct {
 // DBInstance represents a single database within a group.
 type DBInstance struct {
 	Name     string `mapstructure:"name"      yaml:"name"`
-	KVPath   string `mapstructure:"kv_path"   yaml:"kv_path,omitempty"`
+	Host     string `mapstructure:"host"      yaml:"host,omitempty"`
+	Port     string `mapstructure:"port"      yaml:"port,omitempty"`
+	Database string `mapstructure:"database"  yaml:"database,omitempty"`
 	RoleName string `mapstructure:"role_name" yaml:"role_name,omitempty"`
 	Method   string `mapstructure:"method"    yaml:"method,omitempty"`
 }
