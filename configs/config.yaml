@@ -11,24 +11,14 @@ include:
   # - ./configs/redis.yaml
   # - ./configs/mysql.yaml
 vault:
-  # Vault server address, e.g. https://vault.example.com:8200
-  address: "<vault address>"
-  # Vault token via env var; not stored in source control
-  token: "<vault token>"
+  address: "https://vault.hl.test:8200"
+  role_id: "59627c2c-2906-7343-e580-cb2b3a785e94"
+  role_name: "approle-backup"
 backup:
-  # directory for all backups
   output_directory: "./backups"
-  # gzip archives after dump
   compress: true
-  # time format
   timestamp_format: "2006-01-02_15-04-05"
-  # max duration per DB dump
   timeout: 30m
-metadata:
-  # backup metadata tracking file
-  path: "./metadata.json"
 retention:
-  # retain last N backups per service
   keep_last: 7
-  # interval to prune old backups
   cleanup_interval: 24h

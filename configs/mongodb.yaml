@@ -8,15 +8,21 @@ mongodb:
   compress: true
   method: "archive" # mongodump modes: "archive" or directory
   vault:
-    kv_base: "secret/data/mongodb"
+    # kv_base: "secret/data/mongodb"
     role_base: "database/creds"
   instances:
     - name: "db1"
-      kv_path: "db1"
+      host: "localhost"
+      port: "27018"
+      database: "testdb1"
       role_name: "mongo-db1-backup"
     - name: "db2"
-      kv_path: "db2"
+      host: "localhost"
+      port: "27019"
+      database: "testdb2"
       role_name: "mongo-db2-backup"
     - name: "db3"
-      kv_path: "db3"
+      host: "localhost"
+      port: "27020"
+      database: "testdb3"
       role_name: "mongo-db3-backup"

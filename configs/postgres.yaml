@@ -6,18 +6,24 @@ postgres:
   port: "5432"
   timeout: 30m
   compress: true
-  method: "tar" # pg_dump formats: plain|custom|directory|tar
+  # pg_dump formats: plain|custom|directory|tar
+  method: "plain"
   vault:
-    kv_base: "secret/data/postgres"
     role_base: "database/creds"
   instances:
     - name: "db1"
-      kv_path: "db1"
+      host: "localhost"
+      port: "5433"
+      database: "db1"
       role_name: "pg-db1-backup"
       method: "plain"
     - name: "db2"
-      kv_path: "db2"
+      host: "localhost"
+      port: "5434"
+      database: "db2"
       role_name: "pg-db2-backup"
     - name: "db3"
-      kv_path: "db3"
+      host: "localhost"
+      port: "5435"
+      database: "db3"
       role_name: "pg-db3-backup"

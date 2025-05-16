@@ -1,157 +1,234 @@
-// Package vault provides a small wrapper around the official
-// HashiCorp Vault Go SDK focused on the two operations bacli needs:
-//  1. Read static connection metadata from a KV mount (host, port, db name).
-//  2. Fetch short‑livedDynamic credentials from the database secrets engine.
-//
-// It purposefully keeps a very small API surface so that callers don’t need to
-// worry about the underlying Vault types.
 package vault
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"os"
 	"time"
 
 	vault "github.com/hashicorp/vault/api"
-	"github.com/mitchellh/mapstructure"
+)
+
+const (
+	approleSecretIDPath = "auth/approle/role/%s/secret-id"
+	approleLoginPath    = "auth/approle/login"
 )
 
 // ErrClientInit indicates failure to initialize the Vault API client.
 var ErrClientInit = errors.New("vault client initialization failed")
 
-// Client is a thin wrapper that embeds the official Vault API client.
-// All higher‑level helper methods hang off this type.
+type Option func(*config)
+
+type config struct {
+	address  string
+	token    string
+	roleID   string
+	roleName string
+}
+
 type Client struct {
-	*vault.Client
+	// The Vault Client
+	api    *vault.Client
+	config *config
 }
-
-// NewClient builds a Vault client from the usual environment variables or the
-// explicit address/token you pass.  TLS settings can be overridden via the
-// standard VAULT_* env vars (VAULT_CACERT, VAULT_CLIENT_CERT, …).
-func NewClient(addr, token string) (*Client, error) {
-	cfg := vault.DefaultConfig()
-
-	// Resolve address (explicit beats env var beats SDK default).
-	switch {
-	case addr != "":
-		cfg.Address = addr
-	case os.Getenv("VAULT_ADDR") != "":
-		cfg.Address = os.Getenv("VAULT_ADDR")
-	}
-
-	api, err := vault.NewClient(cfg)
-	if err != nil {
-		return nil, errors.Join(ErrClientInit, err)
-	}
-
-	// Resolve token.
-	switch {
-	case token != "":
-		api.SetToken(token)
-	case os.Getenv("VAULT_TOKEN") != "":
-		api.SetToken(os.Getenv("VAULT_TOKEN"))
-	}
-
-	return &Client{api}, nil
-}
-
-// -----------------------------------------------------------------------------
-// Types returned to the caller
-// -----------------------------------------------------------------------------
-
-// ConnMeta holds static connection information that does NOT change between
-// dumps (host, port, default database name).
-// Your KV document should store these as strings so that mapping is simple.
-//
-//	path "config/pg-db1" --> {"host":"pg-db1","port":"5432","database":"postgres"}
-//
-// The struct tags guide mapstructure decoding.
-type ConnMeta struct {
-	Host     string `mapstructure:"host"`
-	Port     string `mapstructure:"port"`
-	Database string `mapstructure:"database"`
-}
-
-// DynCreds holds the user/pass pair Vault generates along with the TTL that
-// tells you when the credentials expire.
-//
-// These come from a `database/creds/<role>` read.
-type DynCreds struct {
+type DynamicCredentials struct {
 	Username string
 	Password string
 	TTL      time.Duration
 }
-
-// DBConnection aggregates everything a backup routine needs in a single value.
-type DBConnection struct {
-	ConnMeta
-	DynCreds
+type StaticCredentials struct {
+	Host     string
+	Port     int
+	Database string
 }
 
-// -----------------------------------------------------------------------------
-// High‑level helper methods
-// -----------------------------------------------------------------------------
-
-// ReadConnMeta fetches a KV‑v2 secret and decodes the data block into ConnMeta.
-// The function transparently handles KV‑v1 as well.
-func (c *Client) ReadConnMeta(path string) (ConnMeta, error) {
-	sec, err := c.Logical().Read(path)
-	if err != nil {
-		return ConnMeta{}, fmt.Errorf("vault failed to read %q: %w", path, err)
-	}
-	if sec == nil || sec.Data == nil {
-		return ConnMeta{}, fmt.Errorf("no data at %q", path)
-	}
-
-	// KV‑v2 nests real fields under "data".
-	raw := sec.Data
-	if inner, ok := sec.Data["data"].(map[string]any); ok {
-		raw = inner
-	}
-
-	var cm ConnMeta
-	if err := mapstructure.Decode(raw, &cm); err != nil {
-		return ConnMeta{}, fmt.Errorf("decode KV secret %q: %w", path, err)
-	}
-	return cm, nil
+// Credentials
+type Credentials struct {
+	Static  StaticCredentials
+	Dynamic DynamicCredentials
 }
 
-// FetchDynCreds hits database/creds/<role> and returns the username/password
-// and TTL in a structured value.
-func (c *Client) FetchDynCreds(role string) (DynCreds, error) {
-	sec, err := c.Logical().Read(role)
-	if err != nil {
-		return DynCreds{}, fmt.Errorf("read creds %q: %w", role, err)
-	}
-	if sec == nil || sec.Data == nil {
-		return DynCreds{}, fmt.Errorf("no data for role %q", role)
-	}
+// -------------------------------------------------------------------------------
+// TODO: 1. Initiate the client with a context.Context
+// TODO: 2. Retreive secrets (host, port, database)
+// TODO: 2.1. Default values for credentials retreived from environment variables
+// TODO: 3. Retreive temporal username and password.
+// -------------------------------------------------------------------------------
 
-	user, uOK := sec.Data["username"].(string)
-	pass, pOK := sec.Data["password"].(string)
-	if !uOK || !pOK {
-		return DynCreds{}, fmt.Errorf("unexpected fields in creds for %q: %+v", role, sec.Data)
-	}
+// TODO: This function initializes the Vault client
+// 			 It uses defaults values, and uses functional options
+// 			 to set the address and token.
+// 			`WithToken` is a functional option that sets the token for authentication.
 
-	return DynCreds{
-		Username: user,
-		Password: pass,
-		TTL:      time.Duration(sec.LeaseDuration) * time.Second,
-	}, nil
+func WithAddress(address string) Option {
+	return func(c *config) {
+		c.address = address
+	}
 }
 
-// FullDBConnection is a convenience helper: given a KV path and a Role, it
-// returns the combined static + dynamic information your backup code can use
-// directly.
-func (c *Client) FullDBConnection(kvPath, role string) (DBConnection, error) {
-	meta, err := c.ReadConnMeta(kvPath)
-	if err != nil {
-		return DBConnection{}, err
+func WithToken(token string) Option {
+	return func(c *config) {
+		c.token = token
 	}
-	creds, err := c.FetchDynCreds(role)
-	if err != nil {
-		return DBConnection{}, err
-	}
-	return DBConnection{ConnMeta: meta, DynCreds: creds}, nil
 }
+
+func WithAppRole(roleID, roleName string) Option {
+	return func(c *config) {
+		c.roleID = roleID
+		c.roleName = roleName
+	}
+}
+
+// NewClient creates and initializes a Vault Client using provided options.
+// It will perform AppRole login if roleID and roleName are both set, otherwise
+// a static token (from env or WithToken) is used.
+func NewClient(ctx context.Context, opts ...Option) (*Client, error) {
+	// Build default config from environment
+	cfg := &config{
+		address: os.Getenv("VAULT_ADDR"),
+		token:   os.Getenv("VAULT_TOKEN"),
+	}
+	// Apply user options
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	// Prepare Vault API client config
+	apiCfg := vault.DefaultConfig()
+	if cfg.address != "" {
+		apiCfg.Address = cfg.address
+	}
+
+	api, err := vault.NewClient(apiCfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create Vault API client: %w", err)
+	}
+
+	client := &Client{api: api, config: cfg}
+
+	// Set initial token for static auth
+	if cfg.token != "" {
+		client.api.SetToken(cfg.token)
+	}
+
+	// Perform AppRole login if configured
+	if cfg.roleID != "" && cfg.roleName != "" {
+		if err := client.loginAppRole(ctx); err != nil {
+			return nil, fmt.Errorf("AppRole login failed: %w", err)
+		}
+	}
+
+	return client, nil
+}
+
+// loginAppRole performs AppRole login using the configured roleID and roleName.
+func (c *Client) loginAppRole(ctx context.Context) error {
+	// Generate Secret ID
+	path := fmt.Sprintf(approleSecretIDPath, c.config.roleName)
+	resp, err := c.api.Logical().WriteWithContext(ctx, path, nil)
+	if err != nil {
+		return fmt.Errorf("generate secret_id: %w", err)
+	}
+	sid, ok := resp.Data["secret_id"].(string)
+	if !ok || sid == "" {
+		return fmt.Errorf("no secret_id returned from %s", path)
+	}
+
+	// Login using role_id + secret_id
+	loginData := map[string]any{
+		"role_id":   c.config.roleID,
+		"secret_id": sid,
+	}
+	loginResp, err := c.api.Logical().WriteWithContext(ctx, approleLoginPath, loginData)
+	if err != nil {
+		return fmt.Errorf("approle login request: %w", err)
+	}
+	if loginResp.Auth == nil || loginResp.Auth.ClientToken == "" {
+		return fmt.Errorf("no token in login response")
+	}
+	// Set the new token
+	c.api.SetToken(loginResp.Auth.ClientToken)
+	return nil
+}
+
+// TODO: This function retrieves the static credentials from the Vault
+// 			 it uses the path to the secret as an argument
+// NOTE: I need to minimize the usage of hardcoded values
+
+// // Get the static credentials from the Vault
+// func (client *Client) GetStaticCredentials(
+// 	ctx context.Context,
+// 	path string,
+// ) (StaticCredentials, error) {
+// 	// Read the static credentials from the Vault
+// 	secret, err := client.api.Logical().Read(path)
+// 	if err != nil {
+// 		return StaticCredentials{}, err
+// 	}
+// 	if secret == nil {
+// 		return StaticCredentials{}, fmt.Errorf("no data found at path: %s", path)
+// 	}
+//
+// 	var staticCreds StaticCredentials
+// 	err = mapstructure.Decode(secret.Data, &staticCreds)
+// 	if err != nil {
+// 		return StaticCredentials{}, err
+// 	}
+//
+// 	return staticCreds, nil
+// }
+
+// TODO: This function retrieves the dynamic credentials from the Vault
+// 			 it uses the role name as an argument
+// NOTE: I need to minimize the usage of hardcoded values
+// NOTE: I need to use a more generic way to get the role name
+
+// Get the dynamic credentials from the Vault
+// using the role name, [username, password]
+func (client *Client) GetDynamicCredentials(
+	ctx context.Context,
+	role string,
+) (DynamicCredentials, error) {
+	// Read the dynamic credentials from the Vault
+	secret, err := client.api.Logical().ReadWithContext(ctx, role)
+	if err != nil {
+		return DynamicCredentials{}, err
+	}
+	if secret == nil {
+		return DynamicCredentials{}, fmt.Errorf("no data found at path: %s", role)
+	}
+	user, userOK := secret.Data["username"].(string)
+	pass, passOK := secret.Data["password"].(string)
+	if !userOK || !passOK {
+		return DynamicCredentials{}, fmt.Errorf("invalid data format at path: %s", role)
+	}
+	var dynamicCreds DynamicCredentials
+	dynamicCreds.Username = user
+	dynamicCreds.Password = pass
+	dynamicCreds.TTL = time.Duration(secret.LeaseDuration) * time.Second
+	return dynamicCreds, nil
+}
+
+// GetCredentials retrieves both static and dynamic credentials from the Vault
+// IDEA: I need something cleaner
+// func GetCredentials(address, token string) (*Credentials, error) {
+// 	client, err := Connect(address, token)
+//
+// 	// Get static credentials
+// 	staticCreds, err := client.GetStaticCredentials(context.Background(), path)
+// 	if err != nil {
+// 		return Credentials{}, err
+// 	}
+//
+// 	// Get dynamic credentials
+// 	dynamicCreds, err := client.GetDynamicCredentials(context.Background(), role)
+// 	if err != nil {
+// 		return Credentials{}, err
+// 	}
+//
+// 	return &Credentials{
+// 		Static:  staticCreds,
+// 		Dynamic: dynamicCreds,
+// 	}, nil
+// }
