@@ -179,7 +179,7 @@ func (p *Postgres) Backup() (backupPath string, err error) {
 // Restore runs `pg_restore` to restore from a .dump file.
 func (p *Postgres) Restore(backupFile string) error {
 	log := p.Logger
-	ctx, cancel := context.WithTimeout(context.Background(), p.Timeout)
+	ctx, cancel := context.WithTimeoutCause(context.Background(), p.Timeout, ErrTimeout)
 	defer cancel()
 
 	// Ensure the file exists
