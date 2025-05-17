@@ -20,10 +20,10 @@ func (om *OperationManager) RestoreDatabase(db database.Database, record Metadat
 		if err != nil {
 			return err
 		}
-		record.FilePath = decPath
-
 		// Remove the decompressed files
-		defer RemoveFile(record.FilePath)
+		defer RemoveFile(decPath)
+
+		record.FilePath = decPath
 	}
 	if err := db.Restore(record.FilePath); err != nil {
 		return fmt.Errorf("restore failed: %w", err)

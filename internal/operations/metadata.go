@@ -6,6 +6,8 @@ import (
 	"os"
 	"path/filepath"
 	"time"
+
+	"github.com/kebairia/backup/internal/database"
 )
 
 const MetadataFilename = "metadata.json"
@@ -21,6 +23,33 @@ type Metadata struct {
 	CompletedAt time.Time     `json:"completed_at"`
 	Duration    time.Duration `json:"duration_ms"`
 	SizeBytes   int64         `json:"size_bytes"`
+}
+
+func NewMetadata(db database.Database, startedAt time.Time) *Metadata {
+	return &Metadata{
+		Engine:   db.GetEngine(),
+		Database: db.GetName(),
+		// FilePath: filePath,
+		StartedAt: startedAt,
+	}
+}
+
+func (m *Metadata) Complete(duration time.Duration, path string, err error) {
+	m.CompletedAt = time.Now()
+	m.Duration = duration
+
+	if err != nil {
+		m.Status = "failed"
+		m.Error = err.Error()
+		m.FilePath = "None"
+		return
+	}
+
+	m.Status = "success"
+	m.FilePath = path
+	if info, statErr := os.Stat(path); statErr == nil {
+		m.SizeBytes = info.Size()
+	}
 }
 
 // metadata file

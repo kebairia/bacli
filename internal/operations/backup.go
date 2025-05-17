@@ -2,7 +2,6 @@ package operations
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
 	"sync"
 	"time"
@@ -11,34 +10,21 @@ import (
 	"github.com/kebairia/backup/internal/logger"
 )
 
-// FIX: write metadata logic is inconsistant, I need to clean it
-// I don't think that using `backupPath` is good here
-
-// BackupDatabase runs a single backup against one Database.
-// It returns an error if that backup fails.
-func (om *OperationManager) BackupDatabase(
-	db database.Database,
-) error {
+func (om *OperationManager) BackupDatabase(db database.Database) error {
 	start := time.Now()
-	record := Metadata{
-		Database:  db.GetName(),
-		Engine:    db.GetEngine(),
-		StartedAt: start,
-	}
+
+	// Initialize metadata
+	record := NewMetadata(db, start)
+
+	// Perform the backup
 	backupPath, err := db.Backup()
-	duration := time.Since(start)
-	record.CompletedAt = time.Now()
-	record.Duration = duration
+	record.Complete(time.Since(start), backupPath, err)
+
+	// If backup failed, just return
 	if err != nil {
-		record.Status = "failed"
-		record.Error = err.Error()
-		record.FilePath = "None"
+		// still write failed metadata
+		_ = record.Write(filepath.Dir(backupPath))
 		return fmt.Errorf("backup failed for %q: %w", db.GetName(), err)
-	}
-	record.Status = "success"
-	record.FilePath = backupPath
-	if info, err := os.Stat(backupPath); err == nil {
-		record.SizeBytes = info.Size()
 	}
 
 	// Compress the backup file if needed
@@ -50,9 +36,8 @@ func (om *OperationManager) BackupDatabase(
 		record.FilePath = comPath
 	}
 
-	// Write metadata to file
+	// Write metadata
 	record.Write(filepath.Dir(backupPath))
-
 	return nil
 }
 
