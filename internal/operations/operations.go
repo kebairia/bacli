@@ -52,71 +52,14 @@ func NewOperationManager(configPath string) (*OperationManager, error) {
 	}, nil
 }
 
-// InitializeMongoDBInstance loads, parses, and validates the YAML config at configPath.
-func (om *OperationManager) InitializeMongoDBInstance() ([]database.Database, error) {
-	var dbs []database.Database
-	for _, instance := range om.cfg.MongoDB.Instances {
-		rolePath := filepath.Join(om.cfg.Postgres.Vault.RoleBase, instance.RoleName)
-		secrets, err := om.vaultClient.GetDynamicCredentials(om.ctx, rolePath)
-		if err != nil {
-			return nil, fmt.Errorf("vault read : %w", err)
-		}
-		opts := []database.MongoDBOption{
-			database.WithMongoCredentials(secrets.Username, secrets.Password),
-			database.WithMongoDatabase(instance.Database),
-			database.WithMongoHost(instance.Host),
-			database.WithMongoPort(instance.Port),
-			database.WithMongoMethod(instance.Method),
-		}
-		mg, err := database.NewMongoDB(om.cfg, opts...)
-		if err != nil {
-			return nil, fmt.Errorf(
-				"failed creating MongoDB instance %q: %w",
-				instance.Database,
-				err,
-			)
-		}
-		dbs = append(dbs, mg)
-	}
-	return dbs, nil
-}
-
-// InitializePostgresInstance loads, parses, and validates the YAML config at configPath.
-func (om *OperationManager) InitializePostgresInstance() ([]database.Database, error) {
-	var dbs []database.Database
-	for _, instance := range om.cfg.Postgres.Instances {
-		rolePath := filepath.Join(om.cfg.Postgres.Vault.RoleBase, instance.RoleName)
-		secrets, err := om.vaultClient.GetDynamicCredentials(om.ctx, rolePath)
-		if err != nil {
-			return nil, fmt.Errorf("vault read :%w", err)
-		}
-		opts := []database.PostgresOption{
-			database.WithPostgresCredentials(secrets.Username, secrets.Password),
-			database.WithPostgresDatabase(instance.Database),
-			database.WithPostgresHost(instance.Host),
-			database.WithPostgresPort(instance.Port),
-			database.WithPostgresMethod(instance.Method),
-		}
-		pg, err := database.NewPostgres(om.cfg, opts...)
-		if err != nil {
-			return nil, fmt.Errorf(
-				"failed creating Postgres instance %q: %w",
-				instance.Database,
-				err,
-			)
-		}
-		dbs = append(dbs, pg)
-	}
-	return dbs, nil
-}
-
 // InitializeDatabases loads, parses, and validates the YAML config at configPath.
 func (om *OperationManager) InitializeDatabases() ([]database.Database, error) {
-	pg_dbs, err := om.InitializePostgresInstance()
+	// pg_dbs, err := om.InitializePostgresInstance()
+	pg_dbs, err := database.InitPostgresInstances(om.cfg, om.ctx, om.vaultClient)
 	if err != nil {
 		return nil, fmt.Errorf("initialize postgres instance: %w", err)
 	}
-	mg_dbs, err := om.InitializeMongoDBInstance()
+	mg_dbs, err := database.InitMongoDBInstances(om.cfg, om.ctx, om.vaultClient)
 	if err != nil {
 		return nil, fmt.Errorf("initialize mongodb instance: %w", err)
 	}
@@ -137,7 +80,7 @@ func (om *OperationManager) BackupDatabase(
 	db database.Database,
 ) error {
 	start := time.Now()
-	record := database.Metadata{
+	record := Metadata{
 		Database:  db.GetName(),
 		Engine:    db.GetEngine(),
 		StartedAt: start,
@@ -177,7 +120,7 @@ func (om *OperationManager) BackupDatabase(
 // It returns an error if that restore fails.
 // NOTE: Check for metadata.json in the backup directory,
 // NOTE: if not exist, return an error
-func (om *OperationManager) RestoreDatabase(db database.Database, record database.Metadata) error {
+func (om *OperationManager) RestoreDatabase(db database.Database, record Metadata) error {
 	// decompress the file if the compress=true
 	if om.cfg.Backup.Compress {
 		decPath, err := DecompressZstd(record.FilePath)
@@ -187,7 +130,7 @@ func (om *OperationManager) RestoreDatabase(db database.Database, record databas
 		record.FilePath = decPath
 
 		// Remove the decompressed files
-		defer database.RemoveFile(record.FilePath)
+		defer RemoveFile(record.FilePath)
 	}
 	if err := db.Restore(record.FilePath); err != nil {
 		return fmt.Errorf("restore failed: %w", err)
@@ -257,13 +200,13 @@ func RestoreAll(configPath string) error {
 		return fmt.Errorf("initialize databases: %w", err)
 	}
 
-	record := database.Metadata{}
+	record := Metadata{}
 	var wg sync.WaitGroup
 
 	for _, db := range databases {
 		wg.Add(1)
 
-		go func(db database.Database, record database.Metadata) {
+		go func(db database.Database, record Metadata) {
 			defer wg.Done()
 			// increament my waiting list by one since I'm doing a new backup
 			metadataFile := filepath.Join(

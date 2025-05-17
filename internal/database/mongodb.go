@@ -11,6 +11,7 @@ import (
 
 	"github.com/kebairia/backup/internal/config"
 	"github.com/kebairia/backup/internal/logger"
+	"github.com/kebairia/backup/internal/vault"
 )
 
 const (
@@ -291,4 +292,35 @@ func (m *MongoDB) GetEngine() string {
 
 func (m *MongoDB) GetPath() string {
 	return filepath.Join(m.OutputDir, "mongodb")
+}
+
+// InitMongoDBInstance loads, parses, and validates the YAML config at configPath.
+func InitMongoDBInstances(
+	cfg config.Config,
+	ctx context.Context,
+	vaultClient *vault.Client,
+) ([]Database, error) {
+	var dbs []Database
+	for _, instance := range cfg.MongoDB.Instances {
+		rolePath := filepath.Join(cfg.MongoDB.Vault.RoleBase, instance.RoleName)
+		secrets, err := vaultClient.GetDynamicCredentials(ctx, rolePath)
+		if err != nil {
+			return nil, fmt.Errorf("vault read :%w", err)
+		}
+		opts := []MongoDBOption{
+			WithMongoHost(instance.Host),
+			WithMongoPort(instance.Port),
+			WithMongoCredentials(secrets.Username, secrets.Password),
+			WithMongoDatabase(instance.Database),
+			WithMongoMethod(instance.Method),
+			WithMongoOutputDir(cfg.Backup.OutputDirectory),
+			WithMongoTimestampFormat(cfg.Backup.TimestampFormat),
+		}
+		db, err := NewMongoDB(cfg, opts...)
+		if err != nil {
+			return nil, fmt.Errorf("failed to initialize mongodb instance: %w", err)
+		}
+		dbs = append(dbs, db)
+	}
+	return dbs, nil
 }
