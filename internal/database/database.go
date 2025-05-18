@@ -2,7 +2,11 @@ package database
 
 import "errors"
 
-var ErrTimeout = errors.New("operation timed out")
+var (
+	ErrTimeout       = errors.New("operation timed out")
+	ErrBackupFailed  = errors.New("backup failed")
+	ErrRestoreFailed = errors.New("restore failed")
+)
 
 type Database interface {
 	GetName() string
