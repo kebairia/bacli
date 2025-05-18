@@ -10,7 +10,7 @@ import (
 	"github.com/kebairia/backup/internal/logger"
 )
 
-func (om *OperationManager) BackupDatabase(db database.Database) error {
+func (operator *Operator) BackupDatabase(db database.Database) error {
 	start := time.Now()
 
 	// Initialize metadata
@@ -28,7 +28,7 @@ func (om *OperationManager) BackupDatabase(db database.Database) error {
 	}
 
 	// Compress the backup file if needed
-	if om.cfg.Backup.Compress {
+	if operator.config.Backup.Compress {
 		comPath, err := CompressZstd(backupPath)
 		if err != nil {
 			return fmt.Errorf("compress backup file: %w", err)
@@ -44,12 +44,15 @@ func (om *OperationManager) BackupDatabase(db database.Database) error {
 // BackupAll runs backups for all configured databases in parallel.
 func BackupAll(configPath string) error {
 	log := logger.Global()
-	om, err := NewOperationManager(configPath)
+	operator, err := NewOperator(configPath)
 	if err != nil {
 		return err
 	}
 	// 1) Initialize DB instances
-	databases, err := om.InitializeDatabases()
+	// FIX: I need to retreive the engines from the config files
+	//			I may create a funtion to generate this list
+	list := []string{"postgres", "mongodb"}
+	databases, err := operator.InitializeDatabases(list)
 	if err != nil {
 		return fmt.Errorf("initialize databases: %w", err)
 	}
@@ -67,7 +70,7 @@ func BackupAll(configPath string) error {
 			// mark this goroutine  as DONE (finished) once this function finish(exit)
 			defer wg.Done()
 
-			err := om.BackupDatabase(db)
+			err := operator.BackupDatabase(db)
 			// in case of error, add this error to the error channel
 			if err != nil {
 				log.Error("backup failed",

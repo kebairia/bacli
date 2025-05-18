@@ -13,9 +13,9 @@ import (
 // It returns an error if that restore fails.
 // NOTE: Check for metadata.json in the backup directory,
 // NOTE: if not exist, return an error
-func (om *OperationManager) RestoreDatabase(db database.Database, record Metadata) error {
+func (operator *Operator) RestoreDatabase(db database.Database, record Metadata) error {
 	// decompress the file if the compress=true
-	if om.cfg.Backup.Compress {
+	if operator.config.Backup.Compress {
 		decPath, err := DecompressZstd(record.FilePath)
 		if err != nil {
 			return err
@@ -33,13 +33,15 @@ func (om *OperationManager) RestoreDatabase(db database.Database, record Metadat
 
 func RestoreAll(configPath string) error {
 	log := logger.Global()
-	om, err := NewOperationManager(configPath)
+	operator, err := NewOperator(configPath)
 	if err != nil {
 		return err
 	}
 
 	// 1) Initialize DB instances
-	databases, err := om.InitializeDatabases()
+	list := []string{"postgres", "mongodb"}
+
+	databases, err := operator.InitializeDatabases(list)
 	if err != nil {
 		return fmt.Errorf("initialize databases: %w", err)
 	}
@@ -54,14 +56,14 @@ func RestoreAll(configPath string) error {
 			defer wg.Done()
 			// increament my waiting list by one since I'm doing a new backup
 			metadataFile := filepath.Join(
-				om.cfg.Backup.OutputDirectory,
+				operator.config.Backup.OutputDirectory,
 				db.GetEngine(),
 				db.GetName(),
 				"metadata.json",
 			)
 			record.Load(metadataFile)
 
-			err := om.RestoreDatabase(db, record)
+			err := operator.RestoreDatabase(db, record)
 			// in case of error, add this error to the error channel
 			if err != nil {
 				log.Error("restore failed",
