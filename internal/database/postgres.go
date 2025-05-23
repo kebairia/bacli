@@ -29,6 +29,7 @@ type Postgres struct {
 	OutputDir       string
 	TimeStampFormat string
 	Timeout         time.Duration
+	Compress        bool
 	Logger          logger.Logger
 }
 
@@ -116,6 +117,15 @@ func WithPostgresTimestampFormat(timeStampFormat string) PostgresOption {
 	return func(p *Postgres) {
 		if timeStampFormat != "" {
 			p.TimeStampFormat = timeStampFormat
+		}
+	}
+}
+
+// WithPostgresCompress overrides the compress choice.
+func WithPostgresCompress(compress bool) PostgresOption {
+	return func(p *Postgres) {
+		if compress {
+			p.Compress = true
 		}
 	}
 }

@@ -82,6 +82,7 @@ type DBInstance struct {
 	Database string `mapstructure:"database"  yaml:"database,omitempty"`
 	RoleName string `mapstructure:"role_name" yaml:"role_name,omitempty"`
 	Method   string `mapstructure:"method"    yaml:"method,omitempty"`
+	Compress bool   `mapstructure:"compress"  yaml:"compress,omitempty"`
 }
 
 // Load reads the configuration from the given YAML file using Viper,
