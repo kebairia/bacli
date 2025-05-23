@@ -250,35 +250,5 @@ func (p *Postgres) GetName() string { return p.Database }
 // Engine returns the engine name.
 func (p *Postgres) GetEngine() string { return EnginePostgres }
 
-// InitializePostgresInstance loads, parses, and validates the YAML config at configPath.
-func InitPostgresInstances(
-	cfg config.Config,
-	ctx context.Context,
-	vaultClient *vault.Client,
-) ([]Database, error) {
-	var dbs []Database
-	for _, instance := range cfg.Postgres.Instances {
-		rolePath := filepath.Join(cfg.Postgres.Vault.RoleBase, instance.RoleName)
-		secrets, err := vaultClient.GetDynamicCredentials(ctx, rolePath)
-		if err != nil {
-			return nil, fmt.Errorf("vault read :%w", err)
-		}
-		opts := []PostgresOption{
-			WithPostgresHost(instance.Host),
-			WithPostgresPort(instance.Port),
-			WithPostgresCredentials(secrets.Username, secrets.Password),
-			WithPostgresDatabase(instance.Database),
-			WithPostgresMethod(instance.Method),
-			WithPostgresOutputDir(cfg.Backup.OutputDirectory),
-			WithPostgresTimestampFormat(cfg.Backup.TimestampFormat),
-		}
-		db, err := NewPostgres(cfg, opts...)
-		if err != nil {
-			return nil, fmt.Errorf("failed to initialize postgres instance: %w", err)
-		}
-		dbs = append(dbs, db)
-	}
-	return dbs, nil
-}
 // Path returns the base backup path.
 func (p *Postgres) GetPath() string { return filepath.Join(p.OutputDir, EnginePostgres) }

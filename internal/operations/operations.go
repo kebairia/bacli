@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/kebairia/backup/internal/config"
-	"github.com/kebairia/backup/internal/database"
 	"github.com/kebairia/backup/internal/logger"
 	"github.com/kebairia/backup/internal/vault"
 )
@@ -70,55 +69,4 @@ func NewOperator(configPath string) (*Operator, error) {
 		vaultClient: vaultClient,
 		log:         log,
 	}, nil
-}
-
-// NOTE: I can use a map
-//
-//	instances := make(map[string][]database.Database)
-//
-// InitializeDatabases loads, parses, and validates the YAML config at configPath.
-func (operator *Operator) InitializeDatabases(engines []string) ([]database.Database, error) {
-	var err error
-	instances := make(map[string][]database.Database)
-	dbs := make([]database.Database, 0)
-
-	for _, engine := range engines {
-		switch engine {
-		case "postgres":
-			instances[engine], err = database.InitPostgresInstances(
-				operator.config,
-				operator.ctx,
-				operator.vaultClient,
-			)
-			if err != nil {
-				return nil, fmt.Errorf("initialize postgres instance: %w", err)
-			}
-			dbs = append(dbs, instances[engine]...)
-		case "mongodb":
-			instances[engine], err = database.InitMongoDBInstances(
-				operator.config,
-				operator.ctx,
-				operator.vaultClient,
-			)
-			if err != nil {
-				return nil, fmt.Errorf("initialize mongodb instance: %w", err)
-			}
-			dbs = append(dbs, instances[engine]...)
-			// case "mysql":
-			// 	instances[engine], err = database.InitMySQLInstances(operator.config, operator.ctx, operator.vaultClient)
-			// 	if err != nil {
-			// 		return nil, fmt.Errorf("initialize mysql instance: %w", err)
-			// 	}
-			// 	dbs = append(dbs, instances[engine]...)
-			// case "redis":
-			// 	instances[engine], err = database.InitRedisInstances(operator.config, operator.ctx, operator.vaultClient)
-			// 	if err != nil {
-			// 		return nil, fmt.Errorf("initialize redis instance: %w", err)
-			// 	}
-			//
-			// 	dbs = append(dbs, instances[engine]...)
-		}
-	}
-
-	return dbs, nil
 }
