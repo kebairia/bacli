@@ -218,6 +218,8 @@ func (m *MongoDB) Restore(sourceDir string) error {
 	ctx, cancel := context.WithTimeoutCause(context.Background(), m.Timeout, ErrTimeout)
 	defer cancel()
 
+	// FIX: Use EnsureDirExists function from helpers
+	// 			I need to check if the metadata file exists
 	if _, err := os.Stat(sourceDir); err != nil {
 		return fmt.Errorf("backup source %q not found: %w", sourceDir, err)
 	}

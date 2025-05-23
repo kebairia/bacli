@@ -164,6 +164,12 @@ func (p *Postgres) Backup() (backupPath string, err error) {
 
 	startTime := time.Now()
 	if err := cmd.Run(); err != nil {
+		log.Error("backup failed",
+			"database", p.Database,
+			"engine", EnginePostgres,
+			"path", backupPath,
+			"error", err.Error(),
+		)
 		return "", fmt.Errorf("pg_dump failed: %w", err)
 	}
 	executionDuration := time.Since(startTime)
