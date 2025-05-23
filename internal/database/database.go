@@ -3,9 +3,10 @@ package database
 import "errors"
 
 var (
-	ErrTimeout       = errors.New("operation timed out")
-	ErrBackupFailed  = errors.New("backup failed")
-	ErrRestoreFailed = errors.New("restore failed")
+	ErrTimeout                  = errors.New("operation timed out")
+	ErrBackupFailed             = errors.New("backup failed")
+	ErrRestoreFailed            = errors.New("restore failed")
+	ErrUnsupportedRestoreMethod = errors.New("unsupported restore method")
 )
 
 type Database interface {
