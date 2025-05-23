@@ -11,8 +11,9 @@ import (
 
 	"github.com/kebairia/backup/internal/config"
 	"github.com/kebairia/backup/internal/logger"
-	"github.com/kebairia/backup/internal/vault"
 )
+
+const EnginePostgres = "postgres"
 
 // PostgresOption lets you override default settings on a Postgres.
 type PostgresOption func(*Postgres)
@@ -129,7 +130,7 @@ func (p *Postgres) Backup() (backupPath string, err error) {
 	timestamp := time.Now().Format(p.TimeStampFormat)
 	backupPath = filepath.Join(
 		p.OutputDir,
-		"postgres",
+		EnginePostgres,
 		p.Database,
 		fmt.Sprintf("%s-%s.dump", timestamp, p.Database),
 	)
@@ -154,9 +155,9 @@ func (p *Postgres) Backup() (backupPath string, err error) {
 	cmd.Env = append(os.Environ(), "PGPASSWORD="+p.Password)
 	cmd.Stderr = os.Stderr
 
-	log.Info("backup started",
+	p.Logger.Info("backup started",
 		"database", p.Database,
-		"engine", "postgres",
+		"engine", EnginePostgres,
 		"method", p.Method,
 		"path", backupPath,
 	)
@@ -169,7 +170,7 @@ func (p *Postgres) Backup() (backupPath string, err error) {
 
 	log.Info("backup completed",
 		"database", p.Database,
-		"engine", "postgres",
+		"engine", EnginePostgres,
 		"path", backupPath,
 		"duration", executionDuration.String(),
 	)
@@ -200,8 +201,8 @@ func (p *Postgres) Restore(backupFile string) error {
 			"-d", p.Database,
 			"-f", backupFile,
 		)
-
-	case "custom", "directory", "tar":
+		// "custom", "directory", "tar":
+	default:
 		cmd = exec.CommandContext(ctx, "pg_restore",
 			"-h", p.Host,
 			"-p", p.Port,
@@ -211,8 +212,6 @@ func (p *Postgres) Restore(backupFile string) error {
 			"-F", p.Method,
 			backupFile,
 		)
-	default:
-		return fmt.Errorf("unsupported restore method %q", p.Method)
 	}
 
 	// Handle non interactive authorization
@@ -224,7 +223,7 @@ func (p *Postgres) Restore(backupFile string) error {
 
 	log.Info("restore started",
 		"database", p.Database,
-		"engine", "postgres",
+		"engine", EnginePostgres,
 		"method", p.Method,
 		"source", backupFile,
 	)
@@ -238,24 +237,18 @@ func (p *Postgres) Restore(backupFile string) error {
 
 	log.Info("restore completed",
 		"database", p.Database,
-		"engine", "postgres",
+		"engine", EnginePostgres,
 		"source", backupFile,
 		"duration", executionDuration.String(),
 	)
 	return nil
 }
 
-func (p *Postgres) GetName() string {
-	return p.Database
-}
+// Getters
+func (p *Postgres) GetName() string { return p.Database }
 
-func (p *Postgres) GetEngine() string {
-	return "postgres"
-}
-
-func (p *Postgres) GetPath() string {
-	return filepath.Join(p.OutputDir, "postgres")
-}
+// Engine returns the engine name.
+func (p *Postgres) GetEngine() string { return EnginePostgres }
 
 // InitializePostgresInstance loads, parses, and validates the YAML config at configPath.
 func InitPostgresInstances(
@@ -287,3 +280,5 @@ func InitPostgresInstances(
 	}
 	return dbs, nil
 }
+// Path returns the base backup path.
+func (p *Postgres) GetPath() string { return filepath.Join(p.OutputDir, EnginePostgres) }

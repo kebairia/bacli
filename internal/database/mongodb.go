@@ -11,10 +11,10 @@ import (
 
 	"github.com/kebairia/backup/internal/config"
 	"github.com/kebairia/backup/internal/logger"
-	"github.com/kebairia/backup/internal/vault"
 )
 
 const (
+	EngineMongoDB     = "mongodb"
 	MethodDir         = "directory"
 	MethodDirGzip     = "directory-gzip"
 	MethodArchive     = "archive"
@@ -137,11 +137,12 @@ func (m *MongoDB) Backup() (backupPath string, err error) {
 	timestamp := time.Now().Format(m.TimestampFormat)
 	backupPath = filepath.Join(
 		m.OutputDir,
-		"mongodb",
+		EngineMongoDB,
 		m.Database,
 		fmt.Sprintf("%s-%s.dump", timestamp, m.Database),
 	)
 
+	// FIX: Use EnsureDirExists function from helpers
 	if err := os.MkdirAll(filepath.Dir(backupPath), 0o755); err != nil {
 		return "", fmt.Errorf("failed to create backup directory: %w", err)
 	}
@@ -186,7 +187,7 @@ func (m *MongoDB) Backup() (backupPath string, err error) {
 
 	log.Info("backup started",
 		"database", m.Database,
-		"engine", "mongodb",
+		"engine", EngineMongoDB,
 		"method", m.Method,
 		"path", backupPath,
 	)
@@ -194,7 +195,7 @@ func (m *MongoDB) Backup() (backupPath string, err error) {
 	if err := cmd.Run(); err != nil {
 		log.Error("backup failed",
 			"database", m.Database,
-			"engine", "mongodb",
+			"engine", EngineMongoDB,
 			"path", backupPath,
 			"error", err.Error(),
 		)
@@ -204,7 +205,7 @@ func (m *MongoDB) Backup() (backupPath string, err error) {
 
 	log.Info("backup completed",
 		"database", m.Database,
-		"engine", "mongodb",
+		"engine", EngineMongoDB,
 		"path", backupPath,
 		"duration", executionDuration.String(),
 	)
@@ -263,19 +264,25 @@ func (m *MongoDB) Restore(sourceDir string) error {
 
 	log.Info("restore started",
 		"database", m.Database,
-		"engine", "mongodb",
+		"engine", EngineMongoDB,
 		"method", m.Method,
 		"source", sourceDir,
 	)
 	startTime := time.Now()
 	if err := cmd.Run(); err != nil {
+		log.Error("backup failed",
+			"database", m.Database,
+			"engine", EngineMongoDB,
+			"path", sourceDir,
+			"error", err.Error(),
+		)
 		return fmt.Errorf("mongorestore failed: %w", err)
 	}
 	executionDuration := time.Since(startTime)
 
 	log.Info("restore completed",
 		"database", m.Database,
-		"engine", "mongodb",
+		"engine", EngineMongoDB,
 		"source", sourceDir,
 		"duration", executionDuration.String(),
 	)
@@ -287,12 +294,10 @@ func (m *MongoDB) GetName() string {
 }
 
 func (m *MongoDB) GetEngine() string {
-	return "mongodb"
+	return EngineMongoDB
 }
 
 func (m *MongoDB) GetPath() string {
-	return filepath.Join(m.OutputDir, "mongodb")
-}
 
 // InitMongoDBInstance loads, parses, and validates the YAML config at configPath.
 func InitMongoDBInstances(
@@ -323,4 +328,5 @@ func InitMongoDBInstances(
 		dbs = append(dbs, db)
 	}
 	return dbs, nil
+	return filepath.Join(m.OutputDir, EngineMongoDB)
 }
