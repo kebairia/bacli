@@ -10,7 +10,12 @@ import (
 	"github.com/kebairia/backup/internal/database"
 )
 
-const MetadataFilename = "metadata.json"
+const (
+	MetadataFilename = "metadata.json"
+
+	StatusSuccess = "success"
+	StatusFailed  = "failed"
+)
 
 // Metadata for a single DB backup run
 type Metadata struct {
@@ -25,30 +30,34 @@ type Metadata struct {
 	SizeBytes   int64         `json:"size_bytes"`
 }
 
-func NewMetadata(db database.Database, startedAt time.Time) *Metadata {
-	return &Metadata{
-		Engine:   db.GetEngine(),
-		Database: db.GetName(),
-		// FilePath: filePath,
-		StartedAt: startedAt,
-	}
-}
-
-func (m *Metadata) Complete(duration time.Duration, path string, err error) {
-	m.CompletedAt = time.Now()
-	m.Duration = duration
-
+func NewMetadata(
+	db database.Database,
+	startedAt, completedAt time.Time,
+	filePath string,
+	// fileSize int64,
+	err error,
+) *Metadata {
+	status := StatusSuccess
+	var msg string
+	var fileSize int64
 	if err != nil {
-		m.Status = "failed"
-		m.Error = err.Error()
-		m.FilePath = "None"
-		return
+		status = StatusFailed
+		msg = err.Error()
 	}
 
-	m.Status = "success"
-	m.FilePath = path
-	if info, statErr := os.Stat(path); statErr == nil {
-		m.SizeBytes = info.Size()
+	if info, statErr := os.Stat(filePath); statErr == nil {
+		fileSize = info.Size()
+	}
+	return &Metadata{
+		Engine:      db.GetEngine(),
+		Database:    db.GetName(),
+		FilePath:    filePath,
+		Status:      status,
+		Error:       msg,
+		StartedAt:   startedAt,
+		CompletedAt: completedAt,
+		Duration:    time.Since(startedAt),
+		SizeBytes:   fileSize,
 	}
 }
 

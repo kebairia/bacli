@@ -12,17 +12,12 @@ import (
 
 func (operator *Operator) BackupDatabase(db database.Database) error {
 	start := time.Now()
-
-	// Initialize metadata
-	record := NewMetadata(db, start)
-
-	// Perform the backup
 	backupPath, err := db.Backup()
-	record.Complete(time.Since(start), backupPath, err)
-
-	// If backup failed, just return
+	complete := time.Now()
+	record := NewMetadata(db, start, complete, backupPath, err)
 	if err != nil {
 		// still write failed metadata
+		record.FilePath = "N/A"
 		_ = record.Write(filepath.Dir(backupPath))
 		return fmt.Errorf("backup failed for %q: %w", db.GetName(), err)
 	}
