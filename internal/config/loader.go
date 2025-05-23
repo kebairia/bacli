@@ -26,6 +26,7 @@ type Config struct {
 	// Per-engine groups
 	Postgres DBGroupConfig `mapstructure:"postgres" yaml:"postgres"`
 	MongoDB  DBGroupConfig `mapstructure:"mongodb"  yaml:"mongodb"`
+	MySQL    DBGroupConfig `mapstructure:"mysql"    yaml:"mysql"`
 	Redis    DBGroupConfig `mapstructure:"redis"    yaml:"redis"`
 }
 
