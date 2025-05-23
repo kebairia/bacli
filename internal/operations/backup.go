@@ -49,10 +49,11 @@ func BackupAll(configPath string) error {
 		return err
 	}
 	// 1) Initialize DB instances
-	// FIX: I need to retreive the engines from the config files
-	//			I may create a funtion to generate this list
-	list := []string{"postgres", "mongodb"}
-	databases, err := operator.InitializeDatabases(list)
+	databases, err := database.InitializeDatabases(
+		operator.ctx,
+		operator.config,
+		operator.vaultClient,
+	)
 	if err != nil {
 		return fmt.Errorf("initialize databases: %w", err)
 	}

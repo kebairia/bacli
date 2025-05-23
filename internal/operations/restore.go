@@ -39,9 +39,11 @@ func RestoreAll(configPath string) error {
 	}
 
 	// 1) Initialize DB instances
-	list := []string{"postgres", "mongodb"}
-
-	databases, err := operator.InitializeDatabases(list)
+	databases, err := database.InitializeDatabases(
+		operator.ctx,
+		operator.config,
+		operator.vaultClient,
+	)
 	if err != nil {
 		return fmt.Errorf("initialize databases: %w", err)
 	}

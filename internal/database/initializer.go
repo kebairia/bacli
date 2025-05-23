@@ -12,8 +12,8 @@ import (
 var engines = []string{"postgres", "mongodb", "mysql", "redis"}
 
 var initializers = map[string]func(
-	cfg config.Config,
 	ctx context.Context,
+	cfg config.Config,
 	vaultClient *vault.Client,
 ) ([]Database, error){
 	"postgres": InitPostgresInstances,
@@ -24,8 +24,8 @@ var initializers = map[string]func(
 
 // InitializePostgresInstance loads, parses, and validates the YAML config at configPath.
 func InitPostgresInstances(
-	cfg config.Config,
 	ctx context.Context,
+	cfg config.Config,
 	vaultClient *vault.Client,
 ) ([]Database, error) {
 	var dbs []Database
@@ -56,8 +56,8 @@ func InitPostgresInstances(
 
 // InitMongoDBInstance loads, parses, and validates the YAML config at configPath.
 func InitMongoDBInstances(
-	cfg config.Config,
 	ctx context.Context,
+	cfg config.Config,
 	vaultClient *vault.Client,
 ) ([]Database, error) {
 	var dbs []Database
@@ -87,9 +87,9 @@ func InitMongoDBInstances(
 
 // initMySQLInstances initializes MySQL instances.
 // func initMySQLInstances(
+// 	ctx context.Context,
 // 	cfg config.Config,
 // 	vaultClient *vault.Client,
-// 	ctx context.Context,
 // ) ([]Database, error) {
 // 	var dbs []Database
 // 	for _, inst := range cfg.MySQL.Instances {
@@ -120,9 +120,9 @@ func InitMongoDBInstances(
 //
 // // initRedisInstances initializes Redis instances.
 // func initRedisInstances(
+// 	ctx context.Context,
 // 	cfg config.Config,
 // 	vaultClient *vault.Client,
-// 	ctx context.Context,
 // ) ([]Database, error) {
 // 	var dbs []Database
 // 	for _, inst := range cfg.Redis.Instances {
@@ -153,16 +153,16 @@ func InitMongoDBInstances(
 
 // InitializeDatabases loads, parses, and validates the YAML config at configPath.
 func InitializeDatabases(
+	ctx context.Context,
 	config config.Config,
 	vaultClient *vault.Client,
-	ctx context.Context,
 ) ([]Database, error) {
 	dbs := make([]Database, 0)
 
 	// NOTE: I can add `if !config.IsEngineEnabled(engine) { continue }` in the initializers
 	// 			 to check first if the engine is enabled, I need to see if this is necessary or not.
 	for engine, initializer := range initializers {
-		instances, err := initializer(config, ctx, vaultClient)
+		instances, err := initializer(ctx, config, vaultClient)
 		if err != nil {
 			return nil, fmt.Errorf("initialize %s instance: %w", engine, err)
 		}
