@@ -21,10 +21,9 @@ var ErrClientInit = errors.New("vault client initialization failed")
 type Option func(*config)
 
 type config struct {
-	address  string
-	token    string
-	roleID   string
-	roleName string
+	address     string
+	token       string
+	approleName string
 }
 
 type Client struct {
@@ -73,10 +72,9 @@ func WithToken(token string) Option {
 	}
 }
 
-func WithAppRole(roleID, roleName string) Option {
+func WithAppRole(approleName string) Option {
 	return func(c *config) {
-		c.roleID = roleID
-		c.roleName = roleName
+		c.approleName = approleName
 	}
 }
 
@@ -113,7 +111,7 @@ func NewClient(ctx context.Context, opts ...Option) (*Client, error) {
 	}
 
 	// Perform AppRole login if configured
-	if cfg.roleID != "" && cfg.roleName != "" {
+	if cfg.approleName != "" {
 		if err := client.loginAppRole(ctx); err != nil {
 			return nil, fmt.Errorf("AppRole login failed: %w", err)
 		}
@@ -122,23 +120,44 @@ func NewClient(ctx context.Context, opts ...Option) (*Client, error) {
 	return client, nil
 }
 
-// loginAppRole performs AppRole login using the configured roleID and roleName.
+// loginAppRole performs AppRole login using only the configured roleName.
+// It fetches the role_id and generates a secret_id automatically.
 func (c *Client) loginAppRole(ctx context.Context) error {
-	// Generate Secret ID
-	path := fmt.Sprintf(approleSecretIDPath, c.config.roleName)
-	resp, err := c.api.Logical().WriteWithContext(ctx, path, nil)
+	// 1. Fetch RoleID
+	roleIDPath := fmt.Sprintf("auth/approle/role/%s/role-id", c.config.approleName)
+	roleIDSecret, err := c.api.Logical().ReadWithContext(ctx, roleIDPath)
+	if err != nil {
+		return fmt.Errorf("fetch role_id: %w", err)
+	}
+	if roleIDSecret == nil || roleIDSecret.Data["role_id"] == nil {
+		return fmt.Errorf("no role_id returned from %s", roleIDPath)
+	}
+	roleID, ok := roleIDSecret.Data["role_id"].(string)
+	if !ok || roleID == "" {
+		return fmt.Errorf("invalid role_id format at %s", roleIDPath)
+	}
+	fmt.Println("-------------------------------------------------------------")
+	fmt.Println(roleID)
+	fmt.Println("-------------------------------------------------------------")
+
+	// 2. Generate SecretID
+	secretIDPath := fmt.Sprintf("auth/approle/role/%s/secret-id", c.config.approleName)
+	secretIDResp, err := c.api.Logical().WriteWithContext(ctx, secretIDPath, nil)
 	if err != nil {
 		return fmt.Errorf("generate secret_id: %w", err)
 	}
-	sid, ok := resp.Data["secret_id"].(string)
-	if !ok || sid == "" {
-		return fmt.Errorf("no secret_id returned from %s", path)
+	if secretIDResp == nil || secretIDResp.Data["secret_id"] == nil {
+		return fmt.Errorf("no secret_id returned from %s", secretIDPath)
+	}
+	secretID, ok := secretIDResp.Data["secret_id"].(string)
+	if !ok || secretID == "" {
+		return fmt.Errorf("invalid secret_id format at %s", secretIDPath)
 	}
 
-	// Login using role_id + secret_id
+	// 3. Login with RoleID + SecretID
 	loginData := map[string]any{
-		"role_id":   c.config.roleID,
-		"secret_id": sid,
+		"role_id":   roleID,
+		"secret_id": secretID,
 	}
 	loginResp, err := c.api.Logical().WriteWithContext(ctx, approleLoginPath, loginData)
 	if err != nil {
@@ -147,6 +166,7 @@ func (c *Client) loginAppRole(ctx context.Context) error {
 	if loginResp.Auth == nil || loginResp.Auth.ClientToken == "" {
 		return fmt.Errorf("no token in login response")
 	}
+
 	// Set the new token
 	c.api.SetToken(loginResp.Auth.ClientToken)
 	return nil

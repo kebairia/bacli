@@ -32,9 +32,8 @@ type Config struct {
 
 // VaultConfig holds connection settings for HashiCorp Vault.
 type VaultConfig struct {
-	Address  string `mapstructure:"address"   yaml:"address"`
-	RoleID   string `mapstructure:"role_id"   yaml:"role_id,omitempty"`
-	RoleName string `mapstructure:"role_name" yaml:"role_name,omitempty"`
+	Address     string `mapstructure:"address"      yaml:"address"`
+	ApproleName string `mapstructure:"approle_name" yaml:"approle_name,omitempty"`
 }
 
 // BackupConfig contains global backup options.

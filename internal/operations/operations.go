@@ -53,7 +53,7 @@ func NewOperator(configPath string) (*Operator, error) {
 	//  Build Vault options
 	vaultOpts := []vault.Option{
 		vault.WithAddress(config.Vault.Address),
-		vault.WithAppRole(config.Vault.RoleID, config.Vault.RoleName),
+		vault.WithAppRole(config.Vault.ApproleName),
 	}
 	// Init Vault client
 	vaultClient, err := vault.NewClient(ctx, vaultOpts...)

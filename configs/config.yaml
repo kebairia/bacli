@@ -11,9 +11,8 @@ include:
   # - ./configs/redis.yaml
   # - ./configs/mysql.yaml
 vault:
-  address: "https://vault.hl.test:8200"
-  role_id: "59627c2c-2906-7343-e580-cb2b3a785e94"
-  role_name: "approle-backup"
+  address: "https://vault.hl.lan:8200"
+  approle_name: "approle-candidate-space-pg-backup"
 backup:
   output_directory: "./backups"
   compress: true
