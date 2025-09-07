@@ -1,28 +1,35 @@
+# =============================================================================
+# File:        mongodb.yaml
+# Project:     bacli - Backup Utility
+# Author:      Zakaria Kebairia
+# Created:     2025-05-07
+# Version:     1.0
 # -----------------------------------------------------------------------------
-# Description: MongoDB backup configuration
-# -----------------------------------------------------------------------------
+# Description:
+#   MongoDB backup configuration for bacli.
+#   Defines global MongoDB backup defaults and instance-specific overrides.
+# =============================================================================
 mongodb:
-  host: "localhost"
-  port: 27017
-  timeout: 30m
-  compress: true
-  method: "archive" # mongodump modes: "archive" or directory
+  # ---------------------------------------------------------------------------
+  # Global defaults (can be overridden per instance)
+  # ---------------------------------------------------------------------------
+  timeout: 30m # Execution timeout for mongodump
+  compression: true # Enable/disable compression
+  role: "mongo" # Default database role name
+  format: "archive" # mongodump formats: archive|directory
   vault:
-    # kv_base: "secret/data/mongodb"
-    role_base: "database/creds"
+    creds_path: "database/creds" # Vault path prefix for DB credentials
+  # ---------------------------------------------------------------------------
+  # MongoDB instances
+  # ---------------------------------------------------------------------------
   instances:
     - name: "db1"
       host: "localhost"
-      port: "27018"
-      database: "testdb1"
-      role_name: "mongo-db1-backup"
+      port: 27017
+      database: "app_main"
+      format: "archive" # Override default (uses archive format)
     - name: "db2"
       host: "localhost"
-      port: "27019"
-      database: "testdb2"
-      role_name: "mongo-db2-backup"
-    - name: "db3"
-      host: "localhost"
-      port: "27020"
-      database: "testdb3"
-      role_name: "mongo-db3-backup"
+      port: 27017
+      database: "analytics"
+      format: "directory" # Example: use directory format

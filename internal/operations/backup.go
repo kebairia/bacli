@@ -23,7 +23,7 @@ func (operator *Operator) BackupDatabase(db database.Database) error {
 	}
 
 	// Compress the backup file if needed
-	if operator.config.Backup.Compress {
+	if operator.config.Backup.Compression {
 		comPath, err := CompressZstd(backupPath)
 		if err != nil {
 			return fmt.Errorf("compress backup file: %w", err)

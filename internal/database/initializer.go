@@ -41,8 +41,8 @@ func InitPostgresInstances(
 			WithPostgresCredentials(creds.Username, creds.Password),
 			WithPostgresDatabase(instance.Database),
 			WithPostgresMethod(instance.Method),
-			WithPostgresOutputDir(cfg.Backup.OutputDirectory),
-			WithPostgresTimestampFormat(cfg.Backup.TimestampFormat),
+			WithPostgresOutputDir(cfg.Backup.Directory),
+			WithPostgresTimestampFormat(cfg.Backup.TimestampFmt),
 			WithPostgresCompress(true),
 		}
 		db, err := NewPostgres(cfg, opts...)
@@ -73,8 +73,8 @@ func InitMongoDBInstances(
 			WithMongoCredentials(secrets.Username, secrets.Password),
 			WithMongoDatabase(instance.Database),
 			WithMongoMethod(instance.Method),
-			WithMongoOutputDir(cfg.Backup.OutputDirectory),
-			WithMongoTimestampFormat(cfg.Backup.TimestampFormat),
+			WithMongoOutputDir(cfg.Backup.Directory),
+			WithMongoTimestampFormat(cfg.Backup.TimestampFmt),
 		}
 		db, err := NewMongoDB(cfg, opts...)
 		if err != nil {

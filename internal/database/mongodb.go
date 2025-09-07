@@ -26,16 +26,16 @@ type MongoDBOption func(*MongoDB)
 
 // MongoDB represents a MongoDB database instance for backup and restore.
 type MongoDB struct {
-	Username        string
-	Password        string
-	Database        string
-	Host            string
-	Port            string
-	Method          string
-	OutputDir       string
-	TimestampFormat string
-	Timeout         time.Duration
-	Logger          logger.Logger
+	Username     string
+	Password     string
+	Database     string
+	Host         string
+	Port         string
+	Method       string
+	OutputDir    string
+	TimestampFmt string
+	Timeout      time.Duration
+	Logger       logger.Logger
 }
 
 // NewMongoDB creates a new MongoDB instance based on config defaults and supplied options.
@@ -47,13 +47,13 @@ func NewMongoDB(cfg config.Config, opts ...MongoDBOption) (*MongoDB, error) {
 
 	m := &MongoDB{
 		// Username:        cfg.Defaults.MongoDB.Username,
-		Host:            cfg.MongoDB.EngineDefaults.Host,
-		Port:            cfg.MongoDB.EngineDefaults.Port,
-		Method:          cfg.MongoDB.EngineDefaults.Method,
-		OutputDir:       cfg.Backup.OutputDirectory,
-		TimestampFormat: cfg.Backup.TimestampFormat,
-		Timeout:         cfg.Backup.Timeout,
-		Logger:          log,
+		Host:         cfg.MongoDB.EngineDefaults.Host,
+		Port:         cfg.MongoDB.EngineDefaults.Port,
+		Method:       cfg.MongoDB.EngineDefaults.Method,
+		OutputDir:    cfg.Backup.Directory,
+		TimestampFmt: cfg.Backup.TimestampFmt,
+		Timeout:      cfg.Backup.Timeout,
+		Logger:       log,
 	}
 
 	for _, opt := range opts {
@@ -123,7 +123,7 @@ func WithMongoOutputDir(dir string) MongoDBOption {
 func WithMongoTimestampFormat(format string) MongoDBOption {
 	return func(m *MongoDB) {
 		if format != "" {
-			m.TimestampFormat = format
+			m.TimestampFmt = format
 		}
 	}
 }
@@ -134,7 +134,7 @@ func (m *MongoDB) Backup() (backupPath string, err error) {
 	ctx, cancel := context.WithTimeoutCause(context.Background(), m.Timeout, ErrTimeout)
 	defer cancel()
 
-	timestamp := time.Now().Format(m.TimestampFormat)
+	timestamp := time.Now().Format(m.TimestampFmt)
 	backupPath = filepath.Join(
 		m.OutputDir,
 		EngineMongoDB,

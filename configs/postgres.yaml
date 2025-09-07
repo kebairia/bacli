@@ -1,29 +1,42 @@
+# =============================================================================
+# File:        postgres.yaml
+# Project:     bacli - Backup Utility
+# Author:      Zakaria Kebairia
+# Created:     2025-05-07
+# Version:     1.0
 # -----------------------------------------------------------------------------
-# Description: PostgreSQL backup configuration
-# -----------------------------------------------------------------------------
+# Description:
+#   PostgreSQL backup configuration for bacli.
+#   Defines global PostgreSQL backup defaults and instance-specific overrides.
+# =============================================================================
 postgres:
+  # ---------------------------------------------------------------------------
+  # Global defaults (can be overridden per instance)
+  # ---------------------------------------------------------------------------
   host: "localhost"
-  port: "5432"
+  port: 5344
+  # Execution timeout for pg_dump
   timeout: 30m
-  compress: true
+  # Enable/disable compression
+  compression: false
+  # Default database role name
+  role: "pg"
   # pg_dump formats: plain|custom|directory|tar
-  method: "plain"
+  format: "custom"
   vault:
-    role_base: "database/creds"
+    # Vault path prefix for DB credentials
+    creds_path: "database/creds"
+  # ---------------------------------------------------------------------------
+  # PostgreSQL instances
+  # ---------------------------------------------------------------------------
   instances:
-    - name: "db1"
+    - name: "keycloak"
+      database: "keycloak"
+      # Override default (uses plain format)
+      format: "plain"
+    - name: "jobboard admin"
       host: "localhost"
-      port: "5433"
-      database: "db1"
-      role_name: "pg-db1-backup"
-      method: "plain"
-    - name: "db2"
-      host: "localhost"
-      port: "5434"
-      database: "db2"
-      role_name: "pg-db2-backup"
-    - name: "db3"
-      host: "localhost"
-      port: "5435"
-      database: "db3"
-      role_name: "pg-db3-backup"
+      port: 5344
+      database: "jobboard_admin"
+      # Inherits global default
+      format: "directory"

@@ -20,16 +20,16 @@ type MySQLOption func(*MySQL)
 
 // MySQL holds configuration for backing up and restoring a MySQL database.
 type MySQL struct {
-	Username        string
-	Password        string
-	Database        string
-	Host            string
-	Port            string
-	Method          string // e.g. "dump"
-	OutputDir       string
-	TimeStampFormat string
-	Timeout         time.Duration
-	Logger          logger.Logger
+	Username     string
+	Password     string
+	Database     string
+	Host         string
+	Port         string
+	Method       string // e.g. "dump"
+	OutputDir    string
+	TimeStampFmt string
+	Timeout      time.Duration
+	Logger       logger.Logger
 }
 
 // NewMySQL returns a MySQL configured from cfg plus any overrides.
@@ -39,13 +39,13 @@ func NewMySQL(cfg config.Config, opts ...MySQLOption) (*MySQL, error) {
 		return nil, fmt.Errorf("logger init failed: %w", err)
 	}
 	m := &MySQL{
-		Host:            cfg.MySQL.EngineDefaults.Host,
-		Port:            cfg.MySQL.EngineDefaults.Port,
-		Method:          cfg.MySQL.EngineDefaults.Method,
-		OutputDir:       cfg.Backup.OutputDirectory,
-		TimeStampFormat: cfg.Backup.TimestampFormat,
-		Timeout:         cfg.Backup.Timeout,
-		Logger:          log,
+		Host:         cfg.MySQL.EngineDefaults.Host,
+		Port:         cfg.MySQL.EngineDefaults.Port,
+		Method:       cfg.MySQL.EngineDefaults.Method,
+		OutputDir:    cfg.Backup.Directory,
+		TimeStampFmt: cfg.Backup.TimestampFmt,
+		Timeout:      cfg.Backup.Timeout,
+		Logger:       log,
 	}
 	for _, opt := range opts {
 		opt(m)
@@ -105,7 +105,7 @@ func WithMySQLOutputDir(dir string) MySQLOption {
 func WithMySQLTimestampFormat(format string) MySQLOption {
 	return func(m *MySQL) {
 		if format != "" {
-			m.TimeStampFormat = format
+			m.TimeStampFmt = format
 		}
 	}
 }
@@ -115,7 +115,7 @@ func (m *MySQL) Backup() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), m.Timeout)
 	defer cancel()
 
-	fileName := fmt.Sprintf("%s-%s.sql", time.Now().Format(m.TimeStampFormat), m.Database)
+	fileName := fmt.Sprintf("%s-%s.sql", time.Now().Format(m.TimeStampFmt), m.Database)
 	backupsDir := filepath.Join(m.OutputDir, mysqlEngine, m.Database)
 	backupPath := filepath.Join(backupsDir, fileName)
 

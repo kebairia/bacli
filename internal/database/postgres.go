@@ -20,17 +20,17 @@ type PostgresOption func(*Postgres)
 
 // Postgres holds configuration for backing up and restoring a PostgreSQL database.
 type Postgres struct {
-	Username        string
-	Password        string
-	Database        string
-	Host            string
-	Port            string
-	Method          string // e.g. "custom", "plain", "directory"
-	OutputDir       string
-	TimeStampFormat string
-	Timeout         time.Duration
-	Compress        bool
-	Logger          logger.Logger
+	Username     string
+	Password     string
+	Database     string
+	Host         string
+	Port         string
+	Method       string // e.g. "custom", "plain", "directory"
+	OutputDir    string
+	TimeStampFmt string
+	Timeout      time.Duration
+	Compress     bool
+	Logger       logger.Logger
 }
 
 // NewPostgres returns a Postgres configured from cfg plus any overrides.
@@ -41,13 +41,13 @@ func NewPostgres(cfg config.Config, opts ...PostgresOption) (*Postgres, error) {
 		return nil, fmt.Errorf("logger init failed: %w", err)
 	}
 	p := &Postgres{
-		Host:            cfg.Postgres.EngineDefaults.Host,
-		Port:            cfg.Postgres.EngineDefaults.Port,
-		Method:          cfg.Postgres.EngineDefaults.Method,
-		OutputDir:       cfg.Backup.OutputDirectory,
-		TimeStampFormat: cfg.Backup.TimestampFormat,
-		Timeout:         cfg.Backup.Timeout,
-		Logger:          log,
+		Host:         cfg.Postgres.EngineDefaults.Host,
+		Port:         cfg.Postgres.EngineDefaults.Port,
+		Method:       cfg.Postgres.EngineDefaults.Method,
+		OutputDir:    cfg.Backup.Directory,
+		TimeStampFmt: cfg.Backup.TimestampFmt,
+		Timeout:      cfg.Backup.Timeout,
+		Logger:       log,
 	}
 	for _, opt := range opts {
 		opt(p)
@@ -113,10 +113,10 @@ func WithPostgresOutputDir(dir string) PostgresOption {
 }
 
 // WithTimestampFormat overrides timestamp format
-func WithPostgresTimestampFormat(timeStampFormat string) PostgresOption {
+func WithPostgresTimestampFormat(timeStampFmt string) PostgresOption {
 	return func(p *Postgres) {
-		if timeStampFormat != "" {
-			p.TimeStampFormat = timeStampFormat
+		if timeStampFmt != "" {
+			p.TimeStampFmt = timeStampFmt
 		}
 	}
 }
@@ -137,7 +137,7 @@ func (p *Postgres) Backup() (backupPath string, err error) {
 
 	defer cancel()
 	// e.g. "./backups/postgres/2025-04-24_21-00-00-mydb.dump"
-	timestamp := time.Now().Format(p.TimeStampFormat)
+	timestamp := time.Now().Format(p.TimeStampFmt)
 	backupPath = filepath.Join(
 		p.OutputDir,
 		EnginePostgres,

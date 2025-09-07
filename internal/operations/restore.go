@@ -15,7 +15,7 @@ import (
 // NOTE: if not exist, return an error
 func (operator *Operator) RestoreDatabase(db database.Database, record Metadata) error {
 	// decompress the file if the compress=true
-	if operator.config.Backup.Compress {
+	if operator.config.Backup.Compression {
 		decPath, err := DecompressZstd(record.FilePath)
 		if err != nil {
 			return err
@@ -58,7 +58,7 @@ func RestoreAll(configPath string) error {
 			defer wg.Done()
 			// increament my waiting list by one since I'm doing a new backup
 			metadataFile := filepath.Join(
-				operator.config.Backup.OutputDirectory,
+				operator.config.Backup.Directory,
 				db.GetEngine(),
 				db.GetName(),
 				"metadata.json",
