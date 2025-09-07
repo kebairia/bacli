@@ -136,9 +136,6 @@ func (c *Client) loginAppRole(ctx context.Context) error {
 	if !ok || roleID == "" {
 		return fmt.Errorf("invalid role_id format at %s", roleIDPath)
 	}
-	fmt.Println("-------------------------------------------------------------")
-	fmt.Println(roleID)
-	fmt.Println("-------------------------------------------------------------")
 
 	// 2. Generate SecretID
 	secretIDPath := fmt.Sprintf("auth/approle/role/%s/secret-id", c.config.approleName)

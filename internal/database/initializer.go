@@ -30,7 +30,12 @@ func InitPostgresInstances(
 ) ([]Database, error) {
 	var dbs []Database
 	for _, instance := range cfg.Postgres.Instances {
-		rolePath := filepath.Join(cfg.Postgres.Vault.RoleBase, instance.RoleName)
+		// Resolve role path
+		roleName := instance.Role
+		if roleName == "" {
+			roleName = cfg.Postgres.Role
+		}
+		rolePath := filepath.Join(cfg.Postgres.Vault.CredsPath, roleName)
 		creds, err := vaultClient.GetDynamicCredentials(ctx, rolePath)
 		if err != nil {
 			return nil, fmt.Errorf("vault read :%w", err)
@@ -62,7 +67,7 @@ func InitMongoDBInstances(
 ) ([]Database, error) {
 	var dbs []Database
 	for _, instance := range cfg.MongoDB.Instances {
-		rolePath := filepath.Join(cfg.MongoDB.Vault.RoleBase, instance.RoleName)
+		rolePath := filepath.Join(cfg.MongoDB.Vault.CredsPath, instance.Role)
 		secrets, err := vaultClient.GetDynamicCredentials(ctx, rolePath)
 		if err != nil {
 			return nil, fmt.Errorf("vault read :%w", err)
